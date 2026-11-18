@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "riotee-probe"
-path = "src/main.rs"
+name = "riotee-probe-rs"
+path = "src/bin/main.rs"
 
 [dependencies]
 anyhow = "1.0.104"
