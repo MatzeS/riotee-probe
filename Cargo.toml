@@ -1,6 +1,27 @@
 [package]
-name = "riotee-probe-rs"
+name = "riotee-probe"
 version = "0.1.0"
 edition = "2024"
 
+license = "MIT OR Apache-2.0"
+description = "Library and CLI to control Riotee devices."
+repository = "https://github.com/MatzeS/riotee-probe"
+keywords = ["riotee"]
+categories = [
+  "embedded",
+  "hardware-support",
+  "development-tools::debugging",
+  "command-line-utilities",
+]
+
+[[bin]]
+name = "riotee-probe"
+path = "src/bin/main.rs"
+
 [dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.8", features = ["derive"] }
+ihex = "3.0.0"
+indicatif = "0.17.11"
+probe-rs = { git = "https://github.com/probe-rs/probe-rs", rev = "be11fbfe854142fa91842f6f354ae14eecd85be5" }
+thiserror = "2.0.21"
