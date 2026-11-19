@@ -41,15 +41,14 @@ impl Kind {
     }
 }
 
-/// Recognizes Riotee probes and boards among any [`DebugProbeSelector`].
 pub trait DebugProbeSelectorExt {
-    /// Whether this selector identifies a Riotee probe or board.
+    /// Which Riotee device this selector identifies based on the VID.
+    fn riotee_kind(&self) -> Option<Kind>;
+
+    /// True, if the selector points to a Riotee device.
     fn is_riotee(&self) -> bool {
         self.riotee_kind().is_some()
     }
-
-    /// Which Riotee device this selector identifies, if any.
-    fn riotee_kind(&self) -> Option<Kind>;
 }
 
 impl DebugProbeSelectorExt for DebugProbeSelector {
@@ -62,7 +61,7 @@ impl DebugProbeSelectorExt for DebugProbeSelector {
     }
 }
 
-/// Lists every connected Riotee probe and board.
+/// List all Riotee devices.
 pub fn list() -> Vec<DebugProbeSelector> {
     Lister::new()
         .list_all()
@@ -72,8 +71,6 @@ pub fn list() -> Vec<DebugProbeSelector> {
         .collect()
 }
 
-/// A connected Riotee Probe or Board, together with its firmware version, if
-/// it could be read (e.g. the device may have failed to open).
 pub struct RioteeInfo {
     pub kind: Kind,
     pub serial_number: String,
@@ -81,8 +78,8 @@ pub struct RioteeInfo {
 }
 
 impl RioteeInfo {
-    /// The selector that identifies this same device, e.g. to pass to [`Riotee::open`].
-    pub fn selector(&self) -> DebugProbeSelector {
+    /// Convert the info to a selector used to open the device.
+    pub fn to_selector(&self) -> DebugProbeSelector {
         DebugProbeSelector::Usb(UsbSelector {
             vendor_id: RIOTEE_VID,
             product_id: self.kind.product_id(),
@@ -93,8 +90,10 @@ impl RioteeInfo {
     }
 }
 
-/// Lists every connected Riotee probe and board, opening each one to read its firmware version.
-pub fn list_connected() -> Vec<RioteeInfo> {
+/// Lists info of all Riotee devices.
+///
+/// This connects to all devices to query the firmware version.
+pub fn list_info() -> Vec<RioteeInfo> {
     list()
         .into_iter()
         .map(|selector| {
@@ -103,7 +102,7 @@ pub fn list_connected() -> Vec<RioteeInfo> {
                 .expect("list() only returns Riotee selectors");
             let DebugProbeSelector::Usb(usb) = &selector;
             let serial_number = usb.serial_number.clone().unwrap_or_default();
-            let firmware_version = Riotee::<Unknown>::open(selector)
+            let firmware_version = Riotee::open(selector)
                 .ok()
                 .and_then(|mut riotee| riotee.firmware_version().ok());
             RioteeInfo {
@@ -115,49 +114,6 @@ pub fn list_connected() -> Vec<RioteeInfo> {
         .collect()
 }
 
-/// Opens a connected Riotee device of any kind.
-///
-/// If `serial` is given, only a device whose serial number matches is opened.
-/// Otherwise exactly one Riotee device must be connected.
-pub fn open(serial: Option<&str>) -> Result<Riotee<Unknown>> {
-    let mut candidates = list();
-
-    if let Some(serial) = serial {
-        candidates.retain(|selector| {
-            let DebugProbeSelector::Usb(usb) = selector;
-            usb.serial_number.as_deref() == Some(serial)
-        });
-        if candidates.is_empty() {
-            bail!("no connected Riotee device has serial number \"{serial}\"");
-        }
-    }
-
-    let selector = match candidates.len() {
-        0 => bail!("no Riotee probe or board is connected"),
-        1 => candidates.pop().unwrap(),
-        n => {
-            let names = candidates
-                .iter()
-                .map(|selector| {
-                    let DebugProbeSelector::Usb(usb) = selector;
-                    format!(
-                        "  {} (serial {})",
-                        selector
-                            .riotee_kind()
-                            .expect("list() only returns Riotee selectors")
-                            .name(),
-                        usb.serial_number.as_deref().unwrap_or("unknown")
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            bail!("{n} Riotee devices are connected, pass --probe <serial> to pick one:\n{names}");
-        }
-    };
-
-    Riotee::<Unknown>::open(selector)
-}
-
 /// Marker trait for type system guidance of the Riotee type.
 pub trait KindMarker {}
 
@@ -165,6 +121,10 @@ pub trait KindMarker {}
 pub struct Board;
 impl KindMarker for Board {}
 
+/// Marker for type system guidance of `Riotee`.
+///
+/// This referes to the riotee probe device (TODO add link).
+/// Not to anything probe-rs related or implementation items.
 #[derive(Clone, Copy, Debug)]
 pub struct Probe;
 impl KindMarker for Probe {}
@@ -235,6 +195,56 @@ impl Riotee<Unknown> {
             kind,
             _marker: PhantomData,
         })
+    }
+
+    /// Opens the Riotee device with the given serial number.
+    pub fn open_by_serial(serial: &str) -> Result<Riotee<Unknown>> {
+        let selector = list()
+            .into_iter()
+            .find(|selector| {
+                let DebugProbeSelector::Usb(usb) = selector;
+                usb.serial_number.as_deref() == Some(serial)
+            })
+            .with_context(|| {
+                format!("no connected Riotee device has serial number \"{serial}\"")
+            })?;
+
+        Riotee::<Unknown>::open(selector)
+    }
+
+    /// Opens the Riotee device.
+    ///
+    /// Fails if multiple devices are connected.
+    /// In this case, use `open_by_serial` or `open` to identify the device you want to connect to.
+    pub fn open_unique() -> Result<Riotee<Unknown>> {
+        let mut candidates = list();
+
+        let selector = match candidates.len() {
+            0 => bail!("no Riotee probe or board is connected"),
+            1 => candidates.pop().unwrap(),
+            n => {
+                let names = candidates
+                    .iter()
+                    .map(|selector| {
+                        let DebugProbeSelector::Usb(usb) = selector;
+                        format!(
+                            "  {} (serial {})",
+                            selector
+                                .riotee_kind()
+                                .expect("list() only returns Riotee selectors")
+                                .name(),
+                            usb.serial_number.as_deref().unwrap_or("unknown")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                bail!(
+                    "{n} Riotee devices are connected, pass --probe <serial> to pick one:\n{names}"
+                );
+            }
+        };
+
+        Riotee::<Unknown>::open(selector)
     }
 }
 
