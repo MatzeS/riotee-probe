@@ -1,11 +1,13 @@
+use std::any::Any;
 use std::marker::PhantomData;
 
 use anyhow::{Context, Result, bail};
-use probe_rs::probe::Probe as RawProbe;
+use probe_rs::probe::ProbeFactory;
+use probe_rs::probe::cmsisdap::{CmsisDap, CmsisDapFactory};
 use probe_rs::probe::list::Lister;
 use probe_rs::probe::{DebugProbeSelector, UsbSelector};
 
-use crate::vendor_commands::{self, CmsisDapExt, ProbeExt};
+use crate::vendor_commands::{self, CmsisDapExt};
 
 const RIOTEE_VID: u16 = 0x1209;
 const BOARD_PID: u16 = 0xC8A0;
@@ -141,7 +143,7 @@ pub struct Riotee<K>
 where
     K: KindMarker,
 {
-    probe: RawProbe,
+    dap: CmsisDap,
 
     // The actual kind connected through this probe.
     // The `K` type may specialize from Unknown to the corresponding marker
@@ -156,7 +158,7 @@ impl Riotee<Unknown> {
     /// downcast to.
     unsafe fn downcast<K: KindMarker>(self) -> Riotee<K> {
         Riotee {
-            probe: self.probe,
+            dap: self.dap,
             kind: self.kind,
             _marker: PhantomData,
         }
@@ -187,11 +189,14 @@ impl Riotee<Unknown> {
         let kind = selector
             .riotee_kind()
             .context("selector does not identify a Riotee probe or board")?;
-        let probe = Lister::new()
-            .open(selector)
-            .with_context(|| format!("opening {}", kind.name()))?;
+        let probe = CmsisDapFactory
+            .open(&selector)
+            .with_context(|| format!("opening {} as a CMSIS-DAP device", kind.name()))?;
+        let probe = *(probe as Box<dyn Any>)
+            .downcast::<CmsisDap>()
+            .expect("CmsisDapFactory only ever yields a CmsisDap");
         Ok(Riotee {
-            probe,
+            dap: probe,
             kind,
             _marker: PhantomData,
         })
@@ -249,26 +254,23 @@ impl Riotee<Unknown> {
 }
 
 impl<K: KindMarker> Riotee<K> {
-    pub fn probe_mut(&mut self) -> &mut RawProbe {
-        &mut self.probe
+    pub fn cmsisdap_mut(&mut self) -> &mut CmsisDap {
+        &mut self.dap
     }
 
-    pub fn into_probe(self) -> RawProbe {
-        self.probe
+    /// Convert into an a generic probe-rs Probe (not referring to the Riotee Probe adapter).
+    pub fn into_probe_rs(self) -> probe_rs::probe::Probe {
+        probe_rs::probe::Probe::new(self.dap)
     }
 
     /// Firmware version string reported by the probe.
     pub fn firmware_version(&mut self) -> Result<String> {
-        self.probe
-            .try_as_cmsisdap()?
-            .send_riotee_command(vendor_commands::Version)
+        self.dap.send_riotee_command(vendor_commands::Version)
     }
 
     /// Switches the target power supply on or off.
     pub fn set_target_power(&mut self, on: bool) -> Result<()> {
-        self.probe
-            .try_as_cmsisdap()?
-            .send_riotee_command(vendor_commands::Power { on })
+        self.dap.send_riotee_command(vendor_commands::Power { on })
     }
 
     /// Reboots the probe into its USB bootloader, for firmware updates.
@@ -277,8 +279,7 @@ impl<K: KindMarker> Riotee<K> {
     /// command.
     /// See: https://github.com/NessieCircuits/Riotee_ProbeSoftware/pull/19
     pub fn enter_bootloader(&mut self) -> Result<()> {
-        self.probe
-            .try_as_cmsisdap()?
+        self.dap
             .send_riotee_command(vendor_commands::EnterBootloader)
     }
 }
@@ -290,9 +291,7 @@ impl Riotee<Board> {
 
     /// Switches the power-bypass measurement switch.
     pub fn set_bypass(&mut self, on: bool) -> Result<()> {
-        self.probe
-            .try_as_cmsisdap()?
-            .send_riotee_command(vendor_commands::Bypass { on })
+        self.dap.send_riotee_command(vendor_commands::Bypass { on })
     }
 }
 
@@ -302,34 +301,34 @@ impl Riotee<Probe> {
     }
 
     /// Configures a GPIO pin's direction.
+    // TODO output parameter is incorrectly named, should be direction, should be strongly typed,
+    // TODO pin should be checked for valid poin numbers.
     pub fn gpio_set_direction(&mut self, pin: u8, output: bool) -> Result<()> {
-        // Defaults an output pin to driving low, matching the Python tool's behavior.
         let state = if output {
             vendor_commands::GpioState::Low
         } else {
             vendor_commands::GpioState::In
         };
-        self.probe
-            .try_as_cmsisdap()?
+        self.dap
             .send_riotee_command(vendor_commands::GpioSet { pin, state })
     }
 
     /// Drives a GPIO pin high or low.
+    ///
+    /// If the pin direction is set to input, it will be changed to output.
     pub fn gpio_set_state(&mut self, pin: u8, high: bool) -> Result<()> {
         let state = if high {
             vendor_commands::GpioState::High
         } else {
             vendor_commands::GpioState::Low
         };
-        self.probe
-            .try_as_cmsisdap()?
+        self.dap
             .send_riotee_command(vendor_commands::GpioSet { pin, state })
     }
 
     /// Reads a GPIO pin's state.
     pub fn gpio_get(&mut self, pin: u8) -> Result<bool> {
-        self.probe
-            .try_as_cmsisdap()?
+        self.dap
             .send_riotee_command(vendor_commands::GpioGet { pin })
     }
 }
