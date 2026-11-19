@@ -8,4 +8,4 @@ pub mod cli;
 pub mod intelhex;
 pub mod probe;
 pub mod target;
-pub mod vendor;
+pub mod vendor_commands;
