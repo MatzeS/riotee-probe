@@ -191,7 +191,7 @@ impl Riotee<Unknown> {
 
     /// Opens the Riotee device identified by `selector`.
     ///
-    /// Also, see `open_probe` and `try_as_probe` resp. `open_board` and `try_as_board`.
+    /// Also, see `try_as_board` and `try_as_probe` to narrow down the device kind.
     pub fn open(selector: &DebugProbeSelector) -> Result<Self> {
         let mut candidates = list();
         candidates.retain(|candidate| selector.matches_selector(candidate));
@@ -276,20 +276,12 @@ impl<K: KindMarker> Riotee<K> {
 }
 
 impl Riotee<Board> {
-    pub fn open_board(selector: &DebugProbeSelector) -> Result<Self> {
-        Riotee::open(selector)?.try_as_board()
-    }
-
     pub fn set_bypass(&mut self, on: bool) -> Result<()> {
         self.dap.send_riotee_command(vendor_commands::Bypass { on })
     }
 }
 
 impl Riotee<Probe> {
-    pub fn open_probe(selector: &DebugProbeSelector) -> Result<Self> {
-        Riotee::open(selector)?.try_as_probe()
-    }
-
     pub fn write_gpio(&mut self, pin: u8, config: GpioConfig) -> Result<()> {
         self.dap
             .send_riotee_command(vendor_commands::GpioSet::new(pin, config)?)
