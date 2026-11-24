@@ -10,6 +10,8 @@ use probe_rs::probe::{DebugProbeSelector, UsbSelector};
 use crate::vendor_commands::{self, CmsisDapExt};
 pub use crate::vendor_commands::{GPIO_COUNT, GpioConfig, Level};
 
+// TODO rename this file.
+
 const RIOTEE_VID: u16 = 0x1209;
 const BOARD_PID: u16 = 0xC8A0;
 const PROBE_PID: u16 = 0xC8A1;
@@ -261,6 +263,11 @@ impl Riotee<Unknown> {
 impl<K: KindMarker> Riotee<K> {
     pub fn cmsisdap_mut(&mut self) -> &mut CmsisDap {
         &mut self.dap
+    }
+
+    /// Convert into an a CMSIS-DAP.
+    pub fn into_cmsisdap(self) -> CmsisDap {
+        self.dap
     }
 
     /// Convert into an a generic probe-rs Probe (not referring to the Riotee Probe adapter).

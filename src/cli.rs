@@ -159,12 +159,12 @@ impl Cli {
             Command::Bypass { state } => riotee.try_as_board()?.set_bypass(state.is_on()),
             Command::TargetPower { state } => riotee.set_target_power(state.is_on()),
 
-            Command::Program { device, firmware } => with_target(riotee, device, |target| {
-                target.program(&firmware, progress::indicatif_progress())
-            }),
-            Command::Reset { device } => with_target(riotee, device, |target| target.reset()),
-            Command::Halt { device } => with_target(riotee, device, |target| target.halt()),
-            Command::Resume { device } => with_target(riotee, device, |target| target.resume()),
+            Command::Program { device, firmware } => {
+                open_target(riotee, device)?.program(&firmware, progress::indicatif_progress())
+            }
+            Command::Reset { device } => open_target(riotee, device)?.reset(),
+            Command::Halt { device } => open_target(riotee, device)?.halt(),
+            Command::Resume { device } => open_target(riotee, device)?.resume(),
 
             Command::Gpio { command } => {
                 let mut riotee = riotee.try_as_probe()?;
@@ -211,21 +211,12 @@ impl Cli {
     }
 }
 
-// TODO this function is a strange shuffle around the target parameter.
-// This could be more elegant.
-fn with_target<K: probe::KindMarker>(
-    mut riotee: probe::Riotee<K>,
+fn open_target<K: probe::KindMarker>(
+    riotee: probe::Riotee<K>,
     device: Device,
-    action: impl FnOnce(&mut dyn Target) -> Result<()>,
-) -> Result<()> {
-    match device {
-        Device::Nrf52 => {
-            let mut nrf52 = Nrf52::attach(riotee.into_probe_rs())?;
-            action(&mut nrf52)
-        }
-        Device::Msp430 => {
-            let mut msp430 = Msp430::connect(riotee.cmsisdap_mut())?;
-            action(&mut msp430)
-        }
-    }
+) -> Result<Box<dyn Target>> {
+    Ok(match device {
+        Device::Nrf52 => Box::new(Nrf52::attach(riotee.into_probe_rs())?),
+        Device::Msp430 => Box::new(Msp430::connect(riotee.into_cmsisdap())?),
+    })
 }
