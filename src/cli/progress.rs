@@ -83,8 +83,9 @@ pub fn indicatif_progress<'a>() -> FlashProgress<'a> {
                 entry.bar.abandon();
             }
         }
-        // TODO DiagnosticMessage carries messages from the flash algorithm, probe-rs's own
-        // CLI prints them and we drop them.
+        ProgressEvent::DiagnosticMessage { message } => {
+            let _ = multi.println(message);
+        }
         _ => {}
     })
 }
