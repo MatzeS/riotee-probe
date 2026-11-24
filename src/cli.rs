@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 
-use crate::probe;
-use crate::probe::{GpioConfig, Level, Riotee};
 use crate::target::Target;
 use crate::target::msp430::Msp430;
 use crate::target::nrf52::Nrf52;
+use crate::{GpioConfig, KindMarker, Level, Riotee};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -191,7 +190,7 @@ impl Cli {
     }
 
     fn list() -> Result<()> {
-        let devices = probe::list_info();
+        let devices = crate::list_info();
         if devices.is_empty() {
             eprintln!("No Riotee probes or boards connected");
             return Ok(());
@@ -211,10 +210,7 @@ impl Cli {
     }
 }
 
-fn open_target<K: probe::KindMarker>(
-    riotee: probe::Riotee<K>,
-    device: Device,
-) -> Result<Box<dyn Target>> {
+fn open_target<K: KindMarker>(riotee: Riotee<K>, device: Device) -> Result<Box<dyn Target>> {
     Ok(match device {
         Device::Nrf52 => Box::new(Nrf52::attach(riotee.into_probe_rs())?),
         Device::Msp430 => Box::new(Msp430::connect(riotee.into_cmsisdap())?),
