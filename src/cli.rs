@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
+use crate::probe;
 use crate::probe::{GpioConfig, Level, Riotee};
 use crate::target::Target;
 use crate::target::msp430::Msp430;
-use crate::{probe, target};
+use crate::target::nrf52::Nrf52;
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -219,8 +220,8 @@ fn with_target<K: probe::KindMarker>(
 ) -> Result<()> {
     match device {
         Device::Nrf52 => {
-            let mut session = target::nrf52::attach(riotee.into_probe_rs())?;
-            action(&mut session)
+            let mut nrf52 = Nrf52::attach(riotee.into_probe_rs())?;
+            action(&mut nrf52)
         }
         Device::Msp430 => {
             let mut msp430 = Msp430::connect(riotee.cmsisdap_mut())?;
