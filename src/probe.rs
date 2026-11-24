@@ -120,14 +120,18 @@ pub fn list_info() -> Vec<RioteeInfo> {
 /// Marker trait for type system guidance of the Riotee type.
 pub trait KindMarker {}
 
+/// Marker for type system guidance of `Riotee`.
+///
+/// This refers to the [Riotee Board](https://www.riotee.nessie-circuits.de/docs/latest/hardware/board.html)
+/// device.
 #[derive(Clone, Copy, Debug)]
 pub struct Board;
 impl KindMarker for Board {}
 
 /// Marker for type system guidance of `Riotee`.
 ///
-/// This referes to the riotee probe device (TODO add link).
-/// Not to anything probe-rs related or implementation items.
+/// This refers to the [Riotee Probe](https://www.riotee.nessie-circuits.de/docs/latest/hardware/probe.html)
+/// device. Not to anything probe-rs related or implementation items.
 #[derive(Clone, Copy, Debug)]
 pub struct Probe;
 impl KindMarker for Probe {}
