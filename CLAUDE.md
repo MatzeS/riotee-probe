@@ -66,9 +66,14 @@ No `mod.rs` files — use `foo.rs` + `foo/` instead.
 These were deliberate and argued through; don't quietly undo them.
 
 **Library first, CLI second.** Anything a library user would want must live outside `cli`.
-In particular, core logic never prints and never renders progress bars: it takes a
+In particular, core logic avoids printing and never renders progress bars: it takes a
 `FlashProgress<'_>`, and callers that don't care pass `FlashProgress::empty()`. `list()`
 returns data; `cli.rs` formats it.
+
+Printing from the library is undesirable rather than forbidden: where an error genuinely
+cannot be returned it may be reported on stderr. `Msp430Session`'s `Drop` is the one such
+case today — it warns if the disconnect fails, and offers `disconnect()` so callers that
+want the `Result` can opt in.
 
 **Typestate for Board vs Probe.** `Riotee<K>` carries a zero-sized marker (`Board`, `Probe`,
 `Unknown`). Board-only methods (`set_bypass`) live in `impl Riotee<Board>`, Probe-only

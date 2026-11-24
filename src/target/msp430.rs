@@ -12,12 +12,33 @@ use super::{ProgramOptions, Target};
 
 pub struct Msp430Session {
     probe: CmsisDap,
+    disconnected: bool,
 }
 
 impl Msp430Session {
     pub fn connect(mut probe: CmsisDap) -> Result<Self> {
         probe.send_riotee_command(vendor_commands::SbwConnect)?;
-        Ok(Self { probe })
+        Ok(Self {
+            probe,
+            disconnected: false,
+        })
+    }
+
+    /// Disconnect from the target.
+    ///
+    /// If not called manually, drop will call this for you, but will be unable to handle the error,
+    /// if one occurs.
+    pub fn disconnect(mut self) -> Result<()> {
+        self.send_disconnect()
+    }
+
+    fn send_disconnect(&mut self) -> Result<()> {
+        if self.disconnected {
+            return Ok(());
+        }
+        self.disconnected = true;
+        self.probe
+            .send_riotee_command(vendor_commands::SbwDisconnect)
     }
 
     fn write_words(&mut self, address: u32, words: &[u16]) -> Result<()> {
@@ -125,14 +146,11 @@ impl Target for Msp430Session {
     }
 }
 
-// TODO the library must not print, cli.rs is the only place that prints. Drop cannot return a
-// Result, so this needs a logging facade or an explicit disconnect() with Drop as the fallback.
+// Drop cannot return a Result, so this is the one place the library writes to stderr itself.
+// Callers that want the error instead call `disconnect`.
 impl Drop for Msp430Session {
     fn drop(&mut self) {
-        let result = self
-            .probe
-            .send_riotee_command(vendor_commands::SbwDisconnect);
-        if let Err(err) = result {
+        if let Err(err) = self.send_disconnect() {
             eprintln!("warning: failed to disconnect from MSP430 target: {err:#}");
         }
     }
