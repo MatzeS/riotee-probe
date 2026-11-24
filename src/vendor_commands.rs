@@ -10,8 +10,6 @@ use probe_rs::probe::cmsisdap::{CmsisDap, VendorCommandId};
 const DAP_OK: u8 = 0x00;
 const DAP_PACKET_SIZE: usize = 64;
 
-// TODO CommandByte and Command::BYTE carry a VendorCommandId now, not a byte; CommandId and
-// Command::ID would match.
 /// Riotee defined vendor command IDs.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
@@ -38,8 +36,8 @@ impl CommandByte {
 }
 
 pub trait Command {
-    /// Command byte of a CMSIS-DAP vendor command.
-    const BYTE: VendorCommandId;
+    /// Command id of a CMSIS-DAP vendor command.
+    const ID: VendorCommandId;
 
     type Response;
 
@@ -93,28 +91,28 @@ pub trait CmsisDapExt {
 impl CmsisDapExt for CmsisDap {
     fn send_riotee_command<C: Command>(&mut self, command: C) -> Result<C::Response> {
         let response = self
-            .send_vendor_command(C::BYTE, &command.encode_payload())
-            .with_context(|| format!("sending vendor command 0x{:02X}", C::BYTE.get()))?;
+            .send_vendor_command(C::ID, &command.encode_payload())
+            .with_context(|| format!("sending vendor command 0x{:02X}", C::ID.get()))?;
 
         let mut data = response.as_slice();
         let status = read_u8(&mut data).context("probe sent an empty vendor command response")?;
         if status != DAP_OK {
             bail!(
                 "probe returned error code 0x{status:02X} for vendor command 0x{:02X}",
-                C::BYTE.get()
+                C::ID.get()
             );
         }
 
         let parsed = command.parse_response(&mut data).with_context(|| {
             format!(
                 "parsing the response of vendor command 0x{:02X}",
-                C::BYTE.get()
+                C::ID.get()
             )
         })?;
         check_empty(data).with_context(|| {
             format!(
                 "parsing the response of vendor command 0x{:02X}",
-                C::BYTE.get()
+                C::ID.get()
             )
         })?;
         Ok(parsed)
@@ -128,7 +126,7 @@ macro_rules! unit_command {
         pub struct $name;
 
         impl Command for $name {
-            const BYTE: VendorCommandId = CommandByte::$name.id();
+            const ID: VendorCommandId = CommandByte::$name.id();
             type Response = ();
 
             fn encode_payload(&self) -> Vec<u8> {
@@ -163,7 +161,7 @@ macro_rules! toggle_command {
         }
 
         impl Command for $name {
-            const BYTE: VendorCommandId = CommandByte::$name.id();
+            const ID: VendorCommandId = CommandByte::$name.id();
             type Response = ();
 
             fn encode_payload(&self) -> Vec<u8> {
@@ -185,7 +183,7 @@ toggle_command!(Bypass);
 pub struct Version;
 
 impl Command for Version {
-    const BYTE: VendorCommandId = CommandByte::Version.id();
+    const ID: VendorCommandId = CommandByte::Version.id();
     type Response = String;
 
     fn encode_payload(&self) -> Vec<u8> {
@@ -240,7 +238,7 @@ impl GpioSet {
 }
 
 impl Command for GpioSet {
-    const BYTE: VendorCommandId = CommandByte::GpioSet.id();
+    const ID: VendorCommandId = CommandByte::GpioSet.id();
     type Response = ();
 
     fn encode_payload(&self) -> Vec<u8> {
@@ -270,7 +268,7 @@ impl GpioGet {
 }
 
 impl Command for GpioGet {
-    const BYTE: VendorCommandId = CommandByte::GpioGet.id();
+    const ID: VendorCommandId = CommandByte::GpioGet.id();
     type Response = Level;
 
     fn encode_payload(&self) -> Vec<u8> {
@@ -311,7 +309,7 @@ impl SbwRead {
 }
 
 impl Command for SbwRead {
-    const BYTE: VendorCommandId = CommandByte::SbwRead.id();
+    const ID: VendorCommandId = CommandByte::SbwRead.id();
     type Response = Vec<u16>;
 
     fn encode_payload(&self) -> Vec<u8> {
@@ -352,7 +350,7 @@ impl<'a> SbwWrite<'a> {
 }
 
 impl Command for SbwWrite<'_> {
-    const BYTE: VendorCommandId = CommandByte::SbwWrite.id();
+    const ID: VendorCommandId = CommandByte::SbwWrite.id();
     type Response = ();
 
     fn encode_payload(&self) -> Vec<u8> {
