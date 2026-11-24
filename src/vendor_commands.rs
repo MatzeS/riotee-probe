@@ -150,18 +150,22 @@ impl Command for Version {
     }
 }
 
-#[repr(u8)]
-#[derive(Clone, Copy, Debug)]
-pub enum GpioState {
-    Low = 0,
-    High = 1,
-    In = 2,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Level {
+    Low,
+    High,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GpioConfig {
+    Input,
+    Output(Level),
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct GpioSet {
     pub pin: u8,
-    pub state: GpioState,
+    pub config: GpioConfig,
 }
 
 impl Command for GpioSet {
@@ -169,7 +173,12 @@ impl Command for GpioSet {
     type Response = ();
 
     fn encode_payload(&self) -> Vec<u8> {
-        vec![self.pin, self.state as u8]
+        let state = match self.config {
+            GpioConfig::Output(Level::Low) => 0,
+            GpioConfig::Output(Level::High) => 1,
+            GpioConfig::Input => 2,
+        };
+        vec![self.pin, state]
     }
 
     fn parse_response(&self, _data: &[u8]) -> Result<()> {
@@ -178,7 +187,6 @@ impl Command for GpioSet {
     }
 }
 
-/// Reads a Probe GPIO pin's state.
 #[derive(Clone, Copy, Debug)]
 pub struct GpioGet {
     pub pin: u8,
@@ -186,16 +194,16 @@ pub struct GpioGet {
 
 impl Command for GpioGet {
     const BYTE: CommandByte = CommandByte::GpioGet;
-    type Response = bool;
+    type Response = Level;
 
     fn encode_payload(&self) -> Vec<u8> {
         vec![self.pin]
     }
 
-    fn parse_response(&self, data: &[u8]) -> Result<bool> {
+    fn parse_response(&self, data: &[u8]) -> Result<Level> {
         let &byte = data.first().context("probe sent an empty GPIO response")?;
-        // TODO check the remaining response data is empty
-        Ok(byte != 0)
+        // TODO check the remaining response data is empty (here and everywehre else)
+        Ok(if byte != 0 { Level::High } else { Level::Low })
     }
 }
 

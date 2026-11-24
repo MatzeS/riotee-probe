@@ -8,6 +8,7 @@ use probe_rs::probe::list::Lister;
 use probe_rs::probe::{DebugProbeSelector, UsbSelector};
 
 use crate::vendor_commands::{self, CmsisDapExt};
+pub use crate::vendor_commands::{GpioConfig, Level};
 
 const RIOTEE_VID: u16 = 0x1209;
 const BOARD_PID: u16 = 0xC8A0;
@@ -263,12 +264,10 @@ impl<K: KindMarker> Riotee<K> {
         probe_rs::probe::Probe::new(self.dap)
     }
 
-    /// Firmware version string reported by the probe.
     pub fn firmware_version(&mut self) -> Result<String> {
         self.dap.send_riotee_command(vendor_commands::Version)
     }
 
-    /// Switches the target power supply on or off.
     pub fn set_target_power(&mut self, on: bool) -> Result<()> {
         self.dap.send_riotee_command(vendor_commands::Power { on })
     }
@@ -289,45 +288,36 @@ impl Riotee<Board> {
         Riotee::open(selector)?.try_as_board()
     }
 
-    /// Switches the power-bypass measurement switch.
     pub fn set_bypass(&mut self, on: bool) -> Result<()> {
         self.dap.send_riotee_command(vendor_commands::Bypass { on })
     }
 }
+
+pub const GPIO_COUNT: u8 = 4;
 
 impl Riotee<Probe> {
     pub fn open_probe(selector: DebugProbeSelector) -> Result<Self> {
         Riotee::open(selector)?.try_as_probe()
     }
 
-    /// Configures a GPIO pin's direction.
-    // TODO output parameter is incorrectly named, should be direction, should be strongly typed,
-    // TODO pin should be checked for valid poin numbers.
-    pub fn gpio_set_direction(&mut self, pin: u8, output: bool) -> Result<()> {
-        let state = if output {
-            vendor_commands::GpioState::Low
-        } else {
-            vendor_commands::GpioState::In
-        };
-        self.dap
-            .send_riotee_command(vendor_commands::GpioSet { pin, state })
+    fn check_pin(pin: u8) -> Result<()> {
+        if pin >= GPIO_COUNT {
+            bail!(
+                "GPIO pin {pin} does not exist, the Riotee Probe has {GPIO_COUNT} GPIO pins (0 through {})",
+                GPIO_COUNT - 1
+            );
+        }
+        Ok(())
     }
 
-    /// Drives a GPIO pin high or low.
-    ///
-    /// If the pin direction is set to input, it will be changed to output.
-    pub fn gpio_set_state(&mut self, pin: u8, high: bool) -> Result<()> {
-        let state = if high {
-            vendor_commands::GpioState::High
-        } else {
-            vendor_commands::GpioState::Low
-        };
+    pub fn write_gpio(&mut self, pin: u8, config: GpioConfig) -> Result<()> {
+        Self::check_pin(pin)?;
         self.dap
-            .send_riotee_command(vendor_commands::GpioSet { pin, state })
+            .send_riotee_command(vendor_commands::GpioSet { pin, config })
     }
 
-    /// Reads a GPIO pin's state.
-    pub fn gpio_get(&mut self, pin: u8) -> Result<bool> {
+    pub fn read_gpio(&mut self, pin: u8) -> Result<Level> {
+        Self::check_pin(pin)?;
         self.dap
             .send_riotee_command(vendor_commands::GpioGet { pin })
     }

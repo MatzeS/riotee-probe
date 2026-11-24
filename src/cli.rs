@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::probe::Riotee;
+use crate::probe::{GpioConfig, Level, Riotee};
 use crate::target::Target;
 use crate::target::msp430::Msp430;
 use crate::{probe, target};
@@ -116,9 +116,14 @@ pub enum Direction {
     Out,
 }
 
-impl Direction {
-    pub fn is_out(self) -> bool {
-        matches!(self, Direction::Out)
+impl From<Direction> for GpioConfig {
+    fn from(direction: Direction) -> Self {
+        match direction {
+            // The firmware has no "output, level untouched" state, so an output has to pick
+            // a level; low, as the Python tool did.
+            Direction::Out => GpioConfig::Output(Level::Low),
+            Direction::In => GpioConfig::Input,
+        }
     }
 }
 
@@ -128,9 +133,12 @@ pub enum PinState {
     Low,
 }
 
-impl PinState {
-    pub fn is_high(self) -> bool {
-        matches!(self, PinState::High)
+impl From<PinState> for Level {
+    fn from(state: PinState) -> Self {
+        match state {
+            PinState::High => Level::High,
+            PinState::Low => Level::Low,
+        }
     }
 }
 
@@ -160,12 +168,16 @@ impl Cli {
             Command::Gpio { command } => {
                 let mut riotee = riotee.try_as_probe()?;
                 match command {
-                    GpioCommand::Dir { pin, direction } => {
-                        riotee.gpio_set_direction(pin, direction.is_out())
+                    GpioCommand::Dir { pin, direction } => riotee.write_gpio(pin, direction.into()),
+                    GpioCommand::Set { pin, state } => {
+                        riotee.write_gpio(pin, GpioConfig::Output(state.into()))
                     }
-                    GpioCommand::Set { pin, state } => riotee.gpio_set_state(pin, state.is_high()),
                     GpioCommand::Get { pin } => {
-                        println!("{}", if riotee.gpio_get(pin)? { "high" } else { "low" });
+                        let level = match riotee.gpio_level(pin)? {
+                            Level::High => "high",
+                            Level::Low => "low",
+                        };
+                        println!("{level}");
                         Ok(())
                     }
                 }
