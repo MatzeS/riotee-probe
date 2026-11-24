@@ -34,8 +34,8 @@ impl Target for Nrf52Session {
     }
 
     fn halt(&mut self) -> Result<()> {
-        // TODO name this timeout.
-        self.core()?.halt(Duration::from_millis(500))?;
+        const TIMEOUT: Duration = Duration::from_millis(500);
+        self.core()?.halt(TIMEOUT)?;
         Ok(())
     }
 
