@@ -9,11 +9,11 @@ use probe_rs::{Core, Permissions, Session};
 
 use super::Target;
 
-pub struct Nrf52 {
+pub struct Nrf52Session {
     session: Session,
 }
 
-impl Nrf52 {
+impl Nrf52Session {
     pub fn attach(probe: Probe) -> Result<Self> {
         let session = probe
             // TODO attaching with TargetSelector::Auto detects the chip; the Python tool pins
@@ -29,7 +29,7 @@ impl Nrf52 {
     }
 }
 
-impl Target for Nrf52 {
+impl Target for Nrf52Session {
     fn reset(&mut self) -> Result<()> {
         self.core()?.reset()?;
         Ok(())

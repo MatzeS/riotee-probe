@@ -10,11 +10,11 @@ use crate::vendor_commands::{self, CmsisDapExt};
 
 use super::Target;
 
-pub struct Msp430 {
+pub struct Msp430Session {
     probe: CmsisDap,
 }
 
-impl Msp430 {
+impl Msp430Session {
     pub fn connect(mut probe: CmsisDap) -> Result<Self> {
         probe.send_riotee_command(vendor_commands::SbwConnect)?;
         Ok(Self { probe })
@@ -70,7 +70,7 @@ impl Msp430 {
     }
 }
 
-impl Target for Msp430 {
+impl Target for Msp430Session {
     fn reset(&mut self) -> Result<()> {
         self.probe.send_riotee_command(vendor_commands::SbwReset)
     }
@@ -113,8 +113,7 @@ impl Target for Msp430 {
     }
 }
 
-// TODO rename Msp430, the name should make it clear that this is a connected 'session'?
-impl Drop for Msp430 {
+impl Drop for Msp430Session {
     fn drop(&mut self) {
         let result = self
             .probe

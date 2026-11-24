@@ -143,7 +143,7 @@ macro_rules! unit_command {
 unit_command!(SbwConnect);
 
 // SbwConnect must be sent before any other Spy-Bi-Wire command, SbwRead and SbwWrite below
-// included. The firmware keeps no session state and answers DAP_OK either way, so Msp430,
+// included. The firmware keeps no session state and answers DAP_OK either way, so Msp430Session,
 // which connects on construction and disconnects on drop, is what keeps the order.
 unit_command!(SbwDisconnect);
 unit_command!(SbwReset);

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::target::Target;
-use crate::target::msp430::Msp430;
-use crate::target::nrf52::Nrf52;
+use crate::target::msp430::Msp430Session;
+use crate::target::nrf52::Nrf52Session;
 use crate::{GpioConfig, KindMarker, Level, Riotee};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -212,7 +212,7 @@ impl Cli {
 
 fn open_target<K: KindMarker>(riotee: Riotee<K>, device: Device) -> Result<Box<dyn Target>> {
     Ok(match device {
-        Device::Nrf52 => Box::new(Nrf52::attach(riotee.into_probe_rs())?),
-        Device::Msp430 => Box::new(Msp430::connect(riotee.into_cmsisdap())?),
+        Device::Nrf52 => Box::new(Nrf52Session::attach(riotee.into_probe_rs())?),
+        Device::Msp430 => Box::new(Msp430Session::connect(riotee.into_cmsisdap())?),
     })
 }
