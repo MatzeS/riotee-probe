@@ -20,18 +20,6 @@ impl<'p> Msp430<'p> {
         Ok(Self { probe })
     }
 
-    pub fn halt(&mut self) -> Result<()> {
-        self.probe.send_riotee_command(vendor_commands::SbwHalt)
-    }
-
-    pub fn resume(&mut self) -> Result<()> {
-        self.probe.send_riotee_command(vendor_commands::SbwResume)
-    }
-
-    pub fn reset(&mut self) -> Result<()> {
-        self.probe.send_riotee_command(vendor_commands::SbwReset)
-    }
-
     fn write_words(&mut self, address: u32, words: &[u16]) -> Result<()> {
         self.probe
             .send_riotee_command(vendor_commands::SbwWrite::new(address, words)?)
@@ -40,35 +28,6 @@ impl<'p> Msp430<'p> {
     fn read_words(&mut self, address: u32, count: u8) -> Result<Vec<u16>> {
         self.probe
             .send_riotee_command(vendor_commands::SbwRead::new(address, count)?)
-    }
-
-    pub fn program(&mut self, firmware: &Path, mut progress: FlashProgress<'_>) -> Result<()> {
-        let contents = std::fs::read_to_string(firmware)
-            .with_context(|| format!("reading {}", firmware.display()))?;
-        let segments = intelhex::parse_words(&contents)
-            .with_context(|| format!("parsing {}", firmware.display()))?;
-
-        let total_words = segments.iter().map(|s| s.words.len() as u64).sum::<u64>();
-        progress.emit(ProgressEvent::AddProgressBar {
-            operation: ProgressOperation::Program,
-            total: Some(total_words),
-        });
-        progress.emit(ProgressEvent::AddProgressBar {
-            operation: ProgressOperation::Verify,
-            total: Some(total_words),
-        });
-        progress.emit(ProgressEvent::Started(ProgressOperation::Program));
-        progress.emit(ProgressEvent::Started(ProgressOperation::Verify));
-
-        if let Err(err) = self.program_inner(&segments, &mut progress) {
-            progress.emit(ProgressEvent::Failed(ProgressOperation::Program));
-            progress.emit(ProgressEvent::Failed(ProgressOperation::Verify));
-            return Err(err);
-        }
-
-        progress.emit(ProgressEvent::Finished(ProgressOperation::Program));
-        progress.emit(ProgressEvent::Finished(ProgressOperation::Verify));
-        Ok(())
     }
 
     // TODO inline this function, there is no reason to extract it
@@ -112,21 +71,45 @@ impl<'p> Msp430<'p> {
 }
 
 impl Target for Msp430<'_> {
-    // TODO inline these functions here, there is no point to redirect them
     fn reset(&mut self) -> Result<()> {
-        Msp430::reset(self)
+        self.probe.send_riotee_command(vendor_commands::SbwReset)
     }
 
     fn halt(&mut self) -> Result<()> {
-        Msp430::halt(self)
+        self.probe.send_riotee_command(vendor_commands::SbwHalt)
     }
 
     fn resume(&mut self) -> Result<()> {
-        Msp430::resume(self)
+        self.probe.send_riotee_command(vendor_commands::SbwResume)
     }
 
-    fn program(&mut self, firmware: &Path, progress: FlashProgress<'_>) -> Result<()> {
-        Msp430::program(self, firmware, progress)
+    fn program(&mut self, firmware: &Path, mut progress: FlashProgress<'_>) -> Result<()> {
+        let contents = std::fs::read_to_string(firmware)
+            .with_context(|| format!("reading {}", firmware.display()))?;
+        let segments = intelhex::parse_words(&contents)
+            .with_context(|| format!("parsing {}", firmware.display()))?;
+
+        let total_words = segments.iter().map(|s| s.words.len() as u64).sum::<u64>();
+        progress.emit(ProgressEvent::AddProgressBar {
+            operation: ProgressOperation::Program,
+            total: Some(total_words),
+        });
+        progress.emit(ProgressEvent::AddProgressBar {
+            operation: ProgressOperation::Verify,
+            total: Some(total_words),
+        });
+        progress.emit(ProgressEvent::Started(ProgressOperation::Program));
+        progress.emit(ProgressEvent::Started(ProgressOperation::Verify));
+
+        if let Err(err) = self.program_inner(&segments, &mut progress) {
+            progress.emit(ProgressEvent::Failed(ProgressOperation::Program));
+            progress.emit(ProgressEvent::Failed(ProgressOperation::Verify));
+            return Err(err);
+        }
+
+        progress.emit(ProgressEvent::Finished(ProgressOperation::Program));
+        progress.emit(ProgressEvent::Finished(ProgressOperation::Verify));
+        Ok(())
     }
 }
 
