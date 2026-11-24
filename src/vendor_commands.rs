@@ -121,8 +121,8 @@ macro_rules! toggle_command {
     };
 }
 
-bool_command!(Power);
-bool_command!(Bypass);
+toggle_command!(Power);
+toggle_command!(Bypass);
 
 /// Queries the firmware version string.
 #[derive(Clone, Copy, Debug)]
