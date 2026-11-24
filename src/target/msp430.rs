@@ -30,18 +30,6 @@ impl Msp430Session {
             .send_riotee_command(vendor_commands::SbwRead::new(address, count)?)
     }
 
-    // TODO inline this function, there is no reason to extract it
-    fn program_inner(
-        &mut self,
-        segments: &[intelhex::Segment],
-        progress: &mut FlashProgress<'_>,
-    ) -> Result<()> {
-        self.halt()?;
-        self.write_segments(segments, progress)?;
-        self.verify_segments(segments, progress)?;
-        self.resume()
-    }
-
     fn write_segments(
         &mut self,
         segments: &[intelhex::Segment],
@@ -53,7 +41,7 @@ impl Msp430Session {
                 self.write_words(address, chunk)?;
                 progress.emit(ProgressEvent::Progress {
                     operation: ProgressOperation::Program,
-                    size: chunk.len() as u64,
+                    size: size_of_val(chunk) as u64,
                     time: start.elapsed(),
                 });
             }
@@ -78,7 +66,7 @@ impl Msp430Session {
                 }
                 progress.emit(ProgressEvent::Progress {
                     operation: ProgressOperation::Verify,
-                    size: chunk.len() as u64,
+                    size: size_of_val(chunk) as u64,
                     time: start.elapsed(),
                 });
             }
@@ -106,27 +94,22 @@ impl Target for Msp430Session {
         let segments = intelhex::parse_words(&contents)
             .with_context(|| format!("parsing {}", firmware.display()))?;
 
-        let total_words = segments.iter().map(|s| s.words.len() as u64).sum::<u64>();
-        progress.emit(ProgressEvent::AddProgressBar {
-            operation: ProgressOperation::Program,
-            total: Some(total_words),
-        });
-        progress.emit(ProgressEvent::AddProgressBar {
-            operation: ProgressOperation::Verify,
-            total: Some(total_words),
-        });
-        progress.emit(ProgressEvent::Started(ProgressOperation::Program));
-        progress.emit(ProgressEvent::Started(ProgressOperation::Verify));
+        let total_bytes = segments
+            .iter()
+            .map(|segment| size_of_val(segment.words.as_slice()) as u64)
+            .sum();
 
-        if let Err(err) = self.program_inner(&segments, &mut progress) {
-            progress.emit(ProgressEvent::Failed(ProgressOperation::Program));
-            progress.emit(ProgressEvent::Failed(ProgressOperation::Verify));
-            return Err(err);
-        }
+        self.halt()?;
 
-        progress.emit(ProgressEvent::Finished(ProgressOperation::Program));
-        progress.emit(ProgressEvent::Finished(ProgressOperation::Verify));
-        Ok(())
+        start_operation(&mut progress, ProgressOperation::Program, total_bytes);
+        let written = self.write_segments(&segments, &mut progress);
+        finish_operation(&mut progress, ProgressOperation::Program, written)?;
+
+        start_operation(&mut progress, ProgressOperation::Verify, total_bytes);
+        let verified = self.verify_segments(&segments, &mut progress);
+        finish_operation(&mut progress, ProgressOperation::Verify, verified)?;
+
+        self.resume()
     }
 }
 
@@ -139,4 +122,25 @@ impl Drop for Msp430Session {
             eprintln!("warning: failed to disconnect from MSP430 target: {err:#}");
         }
     }
+}
+
+fn start_operation(progress: &mut FlashProgress<'_>, operation: ProgressOperation, total: u64) {
+    progress.emit(ProgressEvent::AddProgressBar {
+        operation,
+        total: Some(total),
+    });
+    progress.emit(ProgressEvent::Started(operation));
+}
+
+fn finish_operation(
+    progress: &mut FlashProgress<'_>,
+    operation: ProgressOperation,
+    result: Result<()>,
+) -> Result<()> {
+    progress.emit(if result.is_ok() {
+        ProgressEvent::Finished(operation)
+    } else {
+        ProgressEvent::Failed(operation)
+    });
+    result
 }
