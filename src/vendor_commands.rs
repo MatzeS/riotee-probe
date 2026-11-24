@@ -266,9 +266,12 @@ impl Command for GpioGet {
 
     fn parse_response(&self, data: &mut &[u8]) -> Result<Level> {
         let state = read_u8(data)?;
-        // TODO match on state, use the exact value instead of catch all, error on unxepcted value
-        // TODO do not inline in Ok()
-        Ok(if state != 0 { Level::High } else { Level::Low })
+        let level = match state {
+            0 => Level::Low,
+            1 => Level::High,
+            _ => bail!("probe reported an unknown GPIO level 0x{state:02X}"),
+        };
+        Ok(level)
     }
 }
 
