@@ -150,7 +150,7 @@ impl From<PinState> for Level {
 impl Cli {
     pub fn run(self) -> Result<()> {
         if matches!(self.command, Command::List) {
-            return Self::list();
+            return print_devices();
         }
 
         // Create riotee probe for all probe related commands
@@ -204,28 +204,26 @@ impl Cli {
             Command::List => unreachable!("handled above"),
         }
     }
+}
 
-    // TODO a free function like open_target, or make open_target an associated fn; same role,
-    // so pick one shape.
-    fn list() -> Result<()> {
-        let devices = crate::list_info();
-        if devices.is_empty() {
-            eprintln!("No Riotee probes or boards connected");
-            return Ok(());
-        }
-
-        println!("{:<14}{:<10}Selector", "Kind", "Firmware");
-        for device in devices {
-            let firmware = device.firmware_version.as_deref().unwrap_or("unknown");
-            println!(
-                "{:<14}{:<10}{}",
-                device.kind().name(),
-                firmware,
-                device.selector
-            );
-        }
-        Ok(())
+fn print_devices() -> Result<()> {
+    let devices = crate::list_info();
+    if devices.is_empty() {
+        eprintln!("No Riotee probes or boards connected");
+        return Ok(());
     }
+
+    println!("{:<14}{:<10}Selector", "Kind", "Firmware");
+    for device in devices {
+        let firmware = device.firmware_version.as_deref().unwrap_or("unknown");
+        println!(
+            "{:<14}{:<10}{}",
+            device.kind().name(),
+            firmware,
+            device.selector
+        );
+    }
+    Ok(())
 }
 
 fn open_target<K: KindMarker>(riotee: Riotee<K>, device: Device) -> Result<Box<dyn Target>> {
