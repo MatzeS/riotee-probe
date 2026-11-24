@@ -8,7 +8,7 @@ use probe_rs::probe::list::Lister;
 use probe_rs::probe::{DebugProbeSelector, UsbSelector};
 
 use crate::vendor_commands::{self, CmsisDapExt};
-pub use crate::vendor_commands::{GpioConfig, Level};
+pub use crate::vendor_commands::{GPIO_COUNT, GpioConfig, Level};
 
 const RIOTEE_VID: u16 = 0x1209;
 const BOARD_PID: u16 = 0xC8A0;
@@ -293,32 +293,18 @@ impl Riotee<Board> {
     }
 }
 
-pub const GPIO_COUNT: u8 = 4;
-
 impl Riotee<Probe> {
     pub fn open_probe(selector: DebugProbeSelector) -> Result<Self> {
         Riotee::open(selector)?.try_as_probe()
     }
 
-    fn check_pin(pin: u8) -> Result<()> {
-        if pin >= GPIO_COUNT {
-            bail!(
-                "GPIO pin {pin} does not exist, the Riotee Probe has {GPIO_COUNT} GPIO pins (0 through {})",
-                GPIO_COUNT - 1
-            );
-        }
-        Ok(())
-    }
-
     pub fn write_gpio(&mut self, pin: u8, config: GpioConfig) -> Result<()> {
-        Self::check_pin(pin)?;
         self.dap
-            .send_riotee_command(vendor_commands::GpioSet { pin, config })
+            .send_riotee_command(vendor_commands::GpioSet::new(pin, config)?)
     }
 
     pub fn read_gpio(&mut self, pin: u8) -> Result<Level> {
-        Self::check_pin(pin)?;
         self.dap
-            .send_riotee_command(vendor_commands::GpioGet { pin })
+            .send_riotee_command(vendor_commands::GpioGet::new(pin)?)
     }
 }

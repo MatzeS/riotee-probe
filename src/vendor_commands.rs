@@ -163,10 +163,28 @@ pub enum GpioConfig {
     Output(Level),
 }
 
+pub const GPIO_COUNT: u8 = 4;
+fn check_gpio_pin(pin: u8) -> Result<()> {
+    if pin >= GPIO_COUNT {
+        bail!(
+            "GPIO pin {pin} does not exist, the Riotee Probe has {GPIO_COUNT} GPIO pins (0 through {})",
+            GPIO_COUNT - 1
+        );
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct GpioSet {
-    pub pin: u8,
-    pub config: GpioConfig,
+    pin: u8,
+    config: GpioConfig,
+}
+
+impl GpioSet {
+    pub fn new(pin: u8, config: GpioConfig) -> Result<Self> {
+        check_gpio_pin(pin)?;
+        Ok(Self { pin, config })
+    }
 }
 
 impl Command for GpioSet {
@@ -190,7 +208,14 @@ impl Command for GpioSet {
 
 #[derive(Clone, Copy, Debug)]
 pub struct GpioGet {
-    pub pin: u8,
+    pin: u8,
+}
+
+impl GpioGet {
+    pub fn new(pin: u8) -> Result<Self> {
+        check_gpio_pin(pin)?;
+        Ok(Self { pin })
+    }
 }
 
 impl Command for GpioGet {
