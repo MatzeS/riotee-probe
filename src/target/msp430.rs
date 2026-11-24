@@ -104,14 +104,19 @@ impl Target for Msp430Session {
             .map(|segment| size_of_val(segment.words.as_slice()) as u64)
             .sum();
 
+        add_progress_bar(&mut progress, ProgressOperation::Program, total_bytes);
+        if options.verify {
+            add_progress_bar(&mut progress, ProgressOperation::Verify, total_bytes);
+        }
+
         self.halt()?;
 
-        start_operation(&mut progress, ProgressOperation::Program, total_bytes);
+        start_operation(&mut progress, ProgressOperation::Program);
         let written = self.write_segments(&segments, &mut progress);
         finish_operation(&mut progress, ProgressOperation::Program, written)?;
 
         if options.verify {
-            start_operation(&mut progress, ProgressOperation::Verify, total_bytes);
+            start_operation(&mut progress, ProgressOperation::Verify);
             let verified = self.verify_segments(&segments, &mut progress);
             finish_operation(&mut progress, ProgressOperation::Verify, verified)?;
         }
@@ -131,11 +136,14 @@ impl Drop for Msp430Session {
     }
 }
 
-fn start_operation(progress: &mut FlashProgress<'_>, operation: ProgressOperation, total: u64) {
+fn add_progress_bar(progress: &mut FlashProgress<'_>, operation: ProgressOperation, total: u64) {
     progress.emit(ProgressEvent::AddProgressBar {
         operation,
         total: Some(total),
     });
+}
+
+fn start_operation(progress: &mut FlashProgress<'_>, operation: ProgressOperation) {
     progress.emit(ProgressEvent::Started(operation));
 }
 
