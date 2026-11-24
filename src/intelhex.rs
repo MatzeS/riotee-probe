@@ -12,6 +12,7 @@ pub struct Segment {
 /// Parses Intel HEX data into contiguous 16-bit word segments, merging
 /// adjacent data records the way a flat memory image would be laid out.
 pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
+    // TODO one map node per byte, roughly 128k nodes for a full FRAM image.
     let mut bytes: BTreeMap<u32, u8> = BTreeMap::new();
     let mut base: u32 = 0;
 
@@ -39,6 +40,8 @@ pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
             run.push(iter.next().unwrap().1);
             next_addr += 1;
         }
+        // TODO also check that `start` is word aligned; an odd start address pairs bytes
+        // across word boundaries and yields misaligned MSP430 writes.
         if run.len() % 2 != 0 {
             bail!(
                 "segment at 0x{start:08X} has an odd number of bytes ({}), expected 16-bit aligned data",

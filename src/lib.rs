@@ -58,7 +58,7 @@ impl Kind {
 }
 
 pub trait DebugProbeSelectorExt {
-    /// Which Riotee device this selector identifies based on the VID.
+    /// Which Riotee device this selector identifies based on its VID and PID.
     fn riotee_kind(&self) -> Option<Kind>;
 
     /// True, if the selector points to a Riotee device.
@@ -155,7 +155,7 @@ impl KindMarker for Unknown {}
 
 /// Riotee device interface.
 ///
-/// `K` marks which Riotee device is actually connected though the undelying probe connection.
+/// `K` marks which Riotee device is actually connected through the underlying probe connection.
 /// This influences the available features of the device (board or probe).
 pub struct Riotee<K>
 where
@@ -172,8 +172,11 @@ where
 }
 
 impl Riotee<Unknown> {
-    /// The caller needs to verify that `self` is compaible with what ever `K` this is being
+    /// The caller needs to verify that `self` is compatible with whatever `K` this is being
     /// downcast to.
+    // TODO this is not unsafe: no memory safety is involved, `PhantomData<K>` carries no data,
+    // and a wrong `K` only means the device rejects a command it does not implement. Make it a
+    // plain fn, then nothing in the crate needs unsafe and it can be forbidden crate-wide.
     unsafe fn downcast<K: KindMarker>(self) -> Riotee<K> {
         Riotee {
             dap: self.dap,
@@ -182,6 +185,8 @@ impl Riotee<Unknown> {
         }
     }
 
+    // TODO both messages should report what the device actually is; `self.kind.name()` is
+    // right here, and every other error in the crate names what it found.
     pub fn try_as_board(self) -> Result<Riotee<Board>> {
         if self.kind != Kind::Board {
             bail!("not a board");
@@ -276,12 +281,12 @@ impl<K: KindMarker> Riotee<K> {
         &mut self.dap
     }
 
-    /// Convert into an a CMSIS-DAP.
+    /// Convert into a CMSIS-DAP.
     pub fn into_cmsisdap(self) -> CmsisDap {
         self.dap
     }
 
-    /// Convert into an a generic probe-rs Probe (not referring to the Riotee Probe adapter).
+    /// Convert into a generic probe-rs Probe (not referring to the Riotee Probe adapter).
     pub fn into_probe_rs(self) -> probe_rs::probe::Probe {
         probe_rs::probe::Probe::new(self.dap)
     }

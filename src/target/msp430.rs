@@ -125,6 +125,8 @@ impl Target for Msp430Session {
     }
 }
 
+// TODO the library must not print, cli.rs is the only place that prints. Drop cannot return a
+// Result, so this needs a logging facade or an explicit disconnect() with Drop as the fallback.
 impl Drop for Msp430Session {
     fn drop(&mut self) {
         let result = self

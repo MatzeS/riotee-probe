@@ -10,6 +10,8 @@ use probe_rs::probe::cmsisdap::{CmsisDap, VendorCommandId};
 const DAP_OK: u8 = 0x00;
 const DAP_PACKET_SIZE: usize = 64;
 
+// TODO CommandByte and Command::BYTE carry a VendorCommandId now, not a byte; CommandId and
+// Command::ID would match.
 /// Riotee defined vendor command IDs.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
@@ -119,7 +121,7 @@ impl CmsisDapExt for CmsisDap {
     }
 }
 
-/// Helper macro to implement commands without paylaod or response data.
+/// Helper macro to implement commands without payload or response data.
 macro_rules! unit_command {
     ($name:ident) => {
         #[derive(Clone, Copy, Debug)]

@@ -17,6 +17,8 @@ pub mod progress;
 )]
 pub struct Cli {
     /// Equivalent to `probe-rs --probe` argument.
+    // TODO this only matches a serial number, while probe-rs takes VID:PID[:Serial]. Either
+    // accept the same syntax or stop claiming equivalence in the help text.
     #[arg(long, global = true)]
     pub probe: Option<String>,
 
@@ -204,6 +206,8 @@ impl Cli {
         }
     }
 
+    // TODO a free function like open_target, or make open_target an associated fn; same role,
+    // so pick one shape.
     fn list() -> Result<()> {
         let devices = crate::list_info();
         if devices.is_empty() {
