@@ -12,7 +12,7 @@ pub struct Segment {
 /// Parses Intel HEX data into contiguous 16-bit word segments, merging
 /// adjacent data records the way a flat memory image would be laid out.
 pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
-    // TODO one map node per byte, roughly 128k nodes for a full FRAM image.
+    // A byte map is not efficient, but unlikely to be critical here.
     let mut bytes: BTreeMap<u32, u8> = BTreeMap::new();
     let mut base: u32 = 0;
 
