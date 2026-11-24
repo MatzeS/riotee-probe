@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use crate::target::Target;
 use crate::target::msp430::Msp430Session;
 use crate::target::nrf52::Nrf52Session;
+use crate::target::{ProgramOptions, Target};
 use crate::{GpioConfig, KindMarker, Level, Riotee};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -42,6 +42,9 @@ pub enum Command {
         device: Device,
         #[arg(short, long)]
         firmware: PathBuf,
+        /// Do not read the firmware back to check it was written correctly
+        #[arg(long)]
+        skip_verify: bool,
     },
     /// Reset the target
     Reset {
@@ -158,8 +161,19 @@ impl Cli {
             Command::Bypass { state } => riotee.try_as_board()?.set_bypass(state.is_on()),
             Command::TargetPower { state } => riotee.set_target_power(state.is_on()),
 
-            Command::Program { device, firmware } => {
-                open_target(riotee, device)?.program(&firmware, progress::indicatif_progress())
+            Command::Program {
+                device,
+                firmware,
+                skip_verify,
+            } => {
+                let options = ProgramOptions {
+                    verify: !skip_verify,
+                };
+                open_target(riotee, device)?.program(
+                    &firmware,
+                    options,
+                    progress::indicatif_progress(),
+                )
             }
             Command::Reset { device } => open_target(riotee, device)?.reset(),
             Command::Halt { device } => open_target(riotee, device)?.halt(),

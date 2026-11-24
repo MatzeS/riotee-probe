@@ -8,7 +8,7 @@ use probe_rs::probe::cmsisdap::CmsisDap;
 use crate::intelhex::{self, packetize};
 use crate::vendor_commands::{self, CmsisDapExt};
 
-use super::Target;
+use super::{ProgramOptions, Target};
 
 pub struct Msp430Session {
     probe: CmsisDap,
@@ -49,7 +49,6 @@ impl Msp430Session {
         Ok(())
     }
 
-    // TODO add ability to skip verificiation
     fn verify_segments(
         &mut self,
         segments: &[intelhex::Segment],
@@ -88,7 +87,12 @@ impl Target for Msp430Session {
         self.probe.send_riotee_command(vendor_commands::SbwResume)
     }
 
-    fn program(&mut self, firmware: &Path, mut progress: FlashProgress<'_>) -> Result<()> {
+    fn program(
+        &mut self,
+        firmware: &Path,
+        options: ProgramOptions,
+        mut progress: FlashProgress<'_>,
+    ) -> Result<()> {
         let contents = std::fs::read_to_string(firmware)
             .with_context(|| format!("reading {}", firmware.display()))?;
         let segments = intelhex::parse_words(&contents)
@@ -105,9 +109,11 @@ impl Target for Msp430Session {
         let written = self.write_segments(&segments, &mut progress);
         finish_operation(&mut progress, ProgressOperation::Program, written)?;
 
-        start_operation(&mut progress, ProgressOperation::Verify, total_bytes);
-        let verified = self.verify_segments(&segments, &mut progress);
-        finish_operation(&mut progress, ProgressOperation::Verify, verified)?;
+        if options.verify {
+            start_operation(&mut progress, ProgressOperation::Verify, total_bytes);
+            let verified = self.verify_segments(&segments, &mut progress);
+            finish_operation(&mut progress, ProgressOperation::Verify, verified)?;
+        }
 
         self.resume()
     }

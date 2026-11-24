@@ -7,7 +7,7 @@ use probe_rs::flashing::{self, DownloadOptions, FlashProgress, HexLoader};
 use probe_rs::probe::Probe;
 use probe_rs::{Core, Permissions, Session};
 
-use super::Target;
+use super::{ProgramOptions, Target};
 
 pub struct Nrf52Session {
     session: Session,
@@ -45,12 +45,17 @@ impl Target for Nrf52Session {
         Ok(())
     }
 
-    fn program(&mut self, firmware: &Path, progress: FlashProgress<'_>) -> Result<()> {
-        let mut options = DownloadOptions::new();
-        options.verify = true;
-        options.progress = progress;
+    fn program(
+        &mut self,
+        firmware: &Path,
+        options: ProgramOptions,
+        progress: FlashProgress<'_>,
+    ) -> Result<()> {
+        let mut download = DownloadOptions::new();
+        download.verify = options.verify;
+        download.progress = progress;
 
-        flashing::download_file_with_options(&mut self.session, firmware, HexLoader, options)
+        flashing::download_file_with_options(&mut self.session, firmware, HexLoader, download)
             .with_context(|| format!("programming {}", firmware.display()))
     }
 }
