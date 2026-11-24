@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use probe_rs::config::TargetSelector;
 use probe_rs::flashing::{self, DownloadOptions, FlashProgress, HexLoader};
 use probe_rs::probe::Probe;
-use probe_rs::{Permissions, Session};
+use probe_rs::{Core, Permissions, Session};
 
 use super::Target;
 
@@ -16,26 +16,32 @@ pub struct Nrf52 {
 impl Nrf52 {
     pub fn attach(probe: Probe) -> Result<Self> {
         let session = probe
+            // TODO attaching with TargetSelector::Auto detects the chip; the Python tool pins
+            // `target_override="nrf52"` instead. Consider pinning the target.
             .attach(TargetSelector::Auto, Permissions::new())
             .context("attaching to nRF52 target")?;
         Ok(Self { session })
+    }
+
+    fn core(&mut self) -> Result<Core<'_>> {
+        // The nRF52833 on the Riotee Module is single-core, so core 0 is the only one.
+        Ok(self.session.core(0)?)
     }
 }
 
 impl Target for Nrf52 {
     fn reset(&mut self) -> Result<()> {
-        self.session.core(0)?.reset()?;
+        self.core()?.reset()?;
         Ok(())
     }
 
     fn halt(&mut self) -> Result<()> {
-        // TODO is core(0) a magic number, why 0? what if there are multiple cores?
-        self.session.core(0)?.halt(Duration::from_millis(500))?;
+        self.core()?.halt(Duration::from_millis(500))?;
         Ok(())
     }
 
     fn resume(&mut self) -> Result<()> {
-        self.session.core(0)?.run()?;
+        self.core()?.run()?;
         Ok(())
     }
 
