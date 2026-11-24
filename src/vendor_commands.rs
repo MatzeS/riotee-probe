@@ -87,25 +87,24 @@ impl CmsisDapExt for CmsisDap {
         let id = VendorCommandId::new(C::BYTE as u8)
             .expect("all riotee vendor command ids fall in the 0x80..=0xFE vendor range");
 
-        let describe = || format!("vendor command {:?} (0x{:02X})", C::BYTE, C::BYTE as u8);
-
         let response = self
             .send_vendor_command(id, &command.encode_payload())
-            .with_context(|| format!("sending {}", describe()))?;
+            .with_context(|| format!("sending vendor command {:?}", C::BYTE))?;
 
         let mut data = response.as_slice();
         let status = read_u8(&mut data).context("probe sent an empty vendor command response")?;
         if status != DAP_OK {
             bail!(
-                "probe returned error code 0x{status:02X} for {}",
-                describe()
+                "probe returned error code 0x{status:02X} for vendor command {:?}",
+                C::BYTE
             );
         }
 
         let parsed = command
             .parse_response(&mut data)
-            .with_context(|| format!("parsing the response of {}", describe()))?;
-        check_empty(data).with_context(|| format!("parsing the response of {}", describe()))?;
+            .with_context(|| format!("parsing the response of vendor command {:?}", C::BYTE))?;
+        check_empty(data)
+            .with_context(|| format!("parsing the response of vendor command {:?}", C::BYTE))?;
         Ok(parsed)
     }
 }
