@@ -93,9 +93,13 @@ macro_rules! unit_command {
 
 unit_command!(SbwConnect);
 unit_command!(SbwDisconnect);
+
+// These commands rquire an active SwbSession, hence connect must be send before.
+// TODO the interface does not defend against this
 unit_command!(SbwReset);
 unit_command!(SbwHalt);
 unit_command!(SbwResume);
+
 unit_command!(EnterBootloader);
 
 /// Helper macro to implement commands to toggle hardware switches.
@@ -229,6 +233,7 @@ impl Command for SbwRead {
     }
 }
 
+// TODO document max number of words
 #[derive(Clone, Copy, Debug)]
 pub struct SbwWrite<'a> {
     pub address: u32,
@@ -250,6 +255,8 @@ impl Command for SbwWrite<'_> {
     }
 
     fn parse_response(&self, _data: &[u8]) -> Result<()> {
+        // TODO this (and maybe all) commands should send an OK return code,
+        // we hould verify that and bubble it up
         Ok(())
     }
 }
