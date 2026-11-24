@@ -40,11 +40,12 @@ pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
             run.push(iter.next().unwrap().1);
             next_addr += 1;
         }
-        // TODO also check that `start` is word aligned; an odd start address pairs bytes
-        // across word boundaries and yields misaligned MSP430 writes.
+        if start % 2 != 0 {
+            bail!("segment at 0x{start:08X} does not start on a 16-bit boundary");
+        }
         if run.len() % 2 != 0 {
             bail!(
-                "segment at 0x{start:08X} has an odd number of bytes ({}), expected 16-bit aligned data",
+                "segment at 0x{start:08X} has an odd number of bytes ({})",
                 run.len()
             );
         }
@@ -144,6 +145,20 @@ mod tests {
             Record::Data {
                 offset: 0x0000,
                 value: vec![0x01, 0x02, 0x03],
+            },
+            Record::EndOfFile,
+        ])
+        .unwrap();
+
+        assert!(parse_words(&hex).is_err());
+    }
+
+    #[test]
+    fn rejects_unaligned_segments() {
+        let hex = create_object_file_representation(&[
+            Record::Data {
+                offset: 0x0001,
+                value: vec![0x01, 0x02],
             },
             Record::EndOfFile,
         ])
