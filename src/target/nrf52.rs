@@ -2,7 +2,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use probe_rs::config::TargetSelector;
 use probe_rs::flashing::{self, DownloadOptions, FlashProgress, HexLoader};
 use probe_rs::probe::Probe;
 use probe_rs::{Core, Permissions, Session};
@@ -15,10 +14,9 @@ pub struct Nrf52Session {
 
 impl Nrf52Session {
     pub fn attach(probe: Probe) -> Result<Self> {
+        const CHIP: &str = "nRF52833_xxAA";
         let session = probe
-            // TODO attaching with TargetSelector::Auto detects the chip; the Python tool pins
-            // `target_override="nrf52"` instead. Consider pinning the target.
-            .attach(TargetSelector::Auto, Permissions::new())
+            .attach(CHIP, Permissions::new())
             .context("attaching to nRF52 target")?;
         Ok(Self { session })
     }
