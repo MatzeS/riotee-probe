@@ -182,21 +182,20 @@ impl Riotee<Unknown> {
         }
     }
 
-    // TODO both messages should report what the device actually is; `self.kind.name()` is
-    // right here, and every other error in the crate names what it found.
-    pub fn try_as_board(self) -> Result<Riotee<Board>> {
-        if self.kind != Kind::Board {
-            bail!("not a board");
+    fn require_kind(&self, kind: Kind) -> Result<()> {
+        if self.kind != kind {
+            bail!("expected a {}, found a {}", kind.name(), self.kind.name());
         }
+        Ok(())
+    }
 
+    pub fn try_as_board(self) -> Result<Riotee<Board>> {
+        self.require_kind(Kind::Board)?;
         Ok(self.downcast())
     }
 
     pub fn try_as_probe(self) -> Result<Riotee<Probe>> {
-        if self.kind != Kind::Probe {
-            bail!("not a probe");
-        }
-
+        self.require_kind(Kind::Probe)?;
         Ok(self.downcast())
     }
 
