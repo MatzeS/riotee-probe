@@ -75,19 +75,12 @@ pub enum Command {
 
 #[derive(Subcommand)]
 pub enum GpioCommand {
-    /// Configure a pin's direction
-    Dir {
+    /// Drive a pin high or low, or make it an input
+    Set {
         /// Pin to configure
         pin: u8,
         #[arg(value_enum)]
-        direction: Direction,
-    },
-    /// Drive a pin high or low
-    Set {
-        /// Pin to drive
-        pin: u8,
-        #[arg(value_enum)]
-        state: PinState,
+        config: PinConfig,
     },
     /// Read a pin's state
     Get {
@@ -114,34 +107,20 @@ impl OnOff {
     }
 }
 
+// TODO collapse?
 #[derive(Clone, Copy, ValueEnum)]
-pub enum Direction {
-    In,
-    Out,
-}
-
-impl From<Direction> for GpioConfig {
-    fn from(direction: Direction) -> Self {
-        match direction {
-            // The firmware has no "output, level untouched" state, so an output has to pick
-            // a level; low, as the Python tool did.
-            Direction::Out => GpioConfig::Output(Level::Low),
-            Direction::In => GpioConfig::Input,
-        }
-    }
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-pub enum PinState {
+pub enum PinConfig {
     High,
     Low,
+    Input,
 }
 
-impl From<PinState> for Level {
-    fn from(state: PinState) -> Self {
-        match state {
-            PinState::High => Level::High,
-            PinState::Low => Level::Low,
+impl From<PinConfig> for GpioConfig {
+    fn from(config: PinConfig) -> Self {
+        match config {
+            PinConfig::High => GpioConfig::Output(Level::High),
+            PinConfig::Low => GpioConfig::Output(Level::Low),
+            PinConfig::Input => GpioConfig::Input,
         }
     }
 }
@@ -183,10 +162,7 @@ impl Cli {
             Command::Gpio { command } => {
                 let mut riotee = riotee.try_as_probe()?;
                 match command {
-                    GpioCommand::Dir { pin, direction } => riotee.write_gpio(pin, direction.into()),
-                    GpioCommand::Set { pin, state } => {
-                        riotee.write_gpio(pin, GpioConfig::Output(state.into()))
-                    }
+                    GpioCommand::Set { pin, config } => riotee.write_gpio(pin, config.into()),
                     GpioCommand::Get { pin } => {
                         let level = match riotee.read_gpio(pin)? {
                             Level::High => "high",
