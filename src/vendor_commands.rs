@@ -1,7 +1,7 @@
 //! The CMSIS-DAP custom vendor commands for Riotee devices.
 //!
 //! See
-//! https://github.com/NessieCircuits/Riotee_ProbeSoftware
+//! <https://github.com/NessieCircuits/Riotee_ProbeSoftware>
 //! `firmware/src/probe_vendor.c`
 
 use anyhow::{Context, Result, bail};

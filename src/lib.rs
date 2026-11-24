@@ -1,7 +1,9 @@
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
+
 //! Library and CLI tool to interact with Riotee devices.
 //!
 //! The `riotee-probe-rs` binary (see `src/bin/main.rs`) provides a CLI tool
-//! similar to the original `riotee-probe` tool (https://pypi.org/project/riotee-probe/).
+//! similar to the original `riotee-probe` tool (<https://pypi.org/project/riotee-probe/>).
 //! These features are also programmatically available by the library implementation.
 
 pub mod cli;
@@ -296,7 +298,7 @@ impl<K: KindMarker> Riotee<K> {
     ///
     /// This is only available for 'recent' probes, where the firmware supports the 'bootloader'
     /// command.
-    /// See: https://github.com/NessieCircuits/Riotee_ProbeSoftware/pull/19
+    /// See: <https://github.com/NessieCircuits/Riotee_ProbeSoftware/pull/19>
     pub fn enter_bootloader(&mut self) -> Result<()> {
         self.dap
             .send_riotee_command(vendor_commands::EnterBootloader)

@@ -20,14 +20,19 @@ In this repo are:
 
 ## Verification gate
 
-After code changes, all four should pass clean:
+After code changes, all five should pass clean:
 
 ```sh
 cargo build
 cargo clippy --all-targets -- -D warnings
 cargo fmt && cargo fmt --check
 cargo test
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 ```
+
+`lib.rs` additionally denies `rustdoc::broken_intra_doc_links` and `rustdoc::bare_urls`, so
+those two fail a plain `cargo doc` and show up in the editor too; the gate command catches
+every other rustdoc warning on top.
 
 If something does not succeed point out the issue and reason you cannot resolve this yet.
 Then we will iterate on the design together.
