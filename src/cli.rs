@@ -173,7 +173,7 @@ impl Cli {
                         riotee.write_gpio(pin, GpioConfig::Output(state.into()))
                     }
                     GpioCommand::Get { pin } => {
-                        let level = match riotee.gpio_level(pin)? {
+                        let level = match riotee.read_gpio(pin)? {
                             Level::High => "high",
                             Level::Low => "low",
                         };
