@@ -37,21 +37,41 @@ impl Msp430Session {
         progress: &mut FlashProgress<'_>,
     ) -> Result<()> {
         self.halt()?;
+        self.write_segments(segments, progress)?;
+        self.verify_segments(segments, progress)?;
+        self.resume()
+    }
+
+    fn write_segments(
+        &mut self,
+        segments: &[intelhex::Segment],
+        progress: &mut FlashProgress<'_>,
+    ) -> Result<()> {
         for segment in segments {
-            // Each chunk is written and then read back, so it has to fit both commands; the
-            // write limit is the smaller of the two.
             for (address, chunk) in packetize(segment, vendor_commands::SbwWrite::MAX_WORDS) {
-                let write_start = Instant::now();
+                let start = Instant::now();
                 self.write_words(address, chunk)?;
                 progress.emit(ProgressEvent::Progress {
                     operation: ProgressOperation::Program,
                     size: chunk.len() as u64,
-                    time: write_start.elapsed(),
+                    time: start.elapsed(),
                 });
+            }
+        }
+        Ok(())
+    }
 
-                let verify_start = Instant::now();
+    // TODO add ability to skip verificiation
+    fn verify_segments(
+        &mut self,
+        segments: &[intelhex::Segment],
+        progress: &mut FlashProgress<'_>,
+    ) -> Result<()> {
+        for segment in segments {
+            for (address, chunk) in packetize(segment, vendor_commands::SbwRead::MAX_WORDS) {
+                let start = Instant::now();
                 let count = u8::try_from(chunk.len())
-                    .expect("packetize bounds chunks by SbwWrite::MAX_WORDS");
+                    .expect("packetize bounds chunks by SbwRead::MAX_WORDS");
                 let readback = self.read_words(address, count)?;
                 if readback != chunk {
                     bail!("verification failed at 0x{address:08X}");
@@ -59,14 +79,11 @@ impl Msp430Session {
                 progress.emit(ProgressEvent::Progress {
                     operation: ProgressOperation::Verify,
                     size: chunk.len() as u64,
-                    time: verify_start.elapsed(),
+                    time: start.elapsed(),
                 });
-                // TODO running this interleaved has no benefit for the progress display.
-                // TODO add ability to skip verificiation
-                // TODO run verification after
             }
         }
-        self.resume()
+        Ok(())
     }
 }
 
