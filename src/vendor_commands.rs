@@ -357,3 +357,106 @@ impl Command for SbwWrite<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Parses a response the way `send_riotee_command` does, minus the transport.
+    fn parse<C: Command>(command: &C, response: &[u8]) -> ResponseResult<C::Response> {
+        let mut data = response;
+        let parsed = command.parse_response(&mut data)?;
+        check_empty(data)?;
+        Ok(parsed)
+    }
+
+    #[test]
+    fn unit_commands_send_no_payload() {
+        assert_eq!(SbwConnect.encode_payload(), []);
+        assert_eq!(EnterBootloader.encode_payload(), []);
+    }
+
+    #[test]
+    fn toggle_commands_send_the_firmwares_on_off_values() {
+        assert_eq!(Power { on: true }.encode_payload(), [1]);
+        assert_eq!(Power { on: false }.encode_payload(), [0]);
+        assert_eq!(Bypass { on: true }.encode_payload(), [1]);
+        assert_eq!(Bypass { on: false }.encode_payload(), [0]);
+    }
+
+    #[test]
+    fn gpio_set_encodes_the_firmwares_ioset_states() {
+        let low = GpioConfig::Output(Level::Low);
+        let high = GpioConfig::Output(Level::High);
+        assert_eq!(GpioSet::new(2, low).unwrap().encode_payload(), [2, 0]);
+        assert_eq!(GpioSet::new(2, high).unwrap().encode_payload(), [2, 1]);
+        assert_eq!(
+            GpioSet::new(2, GpioConfig::Input).unwrap().encode_payload(),
+            [2, 2]
+        );
+    }
+
+    #[test]
+    fn gpio_commands_reject_a_pin_the_probe_does_not_have() {
+        assert!(GpioSet::new(GPIO_COUNT - 1, GpioConfig::Input).is_ok());
+        assert!(GpioSet::new(GPIO_COUNT, GpioConfig::Input).is_err());
+        assert!(GpioGet::new(GPIO_COUNT).is_err());
+    }
+
+    #[test]
+    fn gpio_get_parses_the_firmwares_ioget_states() {
+        let command = GpioGet::new(0).unwrap();
+        assert_eq!(parse(&command, &[0]).unwrap(), Level::Low);
+        assert_eq!(parse(&command, &[1]).unwrap(), Level::High);
+        assert!(parse(&command, &[2]).is_err());
+    }
+
+    #[test]
+    fn version_strips_the_trailing_nul_of_old_firmware() {
+        assert_eq!(parse(&Version, b"1.1.0").unwrap(), "1.1.0");
+        assert_eq!(parse(&Version, b"1.0.0\0").unwrap(), "1.0.0");
+    }
+
+    #[test]
+    fn sbw_read_encodes_a_little_endian_address_and_a_word_count() {
+        let command = SbwRead::new(0x0001_C400, 3).unwrap();
+        assert_eq!(command.encode_payload(), [0x00, 0xC4, 0x01, 0x00, 3]);
+    }
+
+    #[test]
+    fn sbw_read_parses_little_endian_words() {
+        let command = SbwRead::new(0, 2).unwrap();
+        let words = parse(&command, &[0x34, 0x12, 0x78, 0x56]).unwrap();
+        assert_eq!(words, [0x1234, 0x5678]);
+    }
+
+    #[test]
+    fn sbw_read_rejects_a_response_short_of_the_words_it_asked_for() {
+        let command = SbwRead::new(0, 2).unwrap();
+        assert!(parse(&command, &[0x34, 0x12, 0x78]).is_err());
+    }
+
+    #[test]
+    fn a_response_longer_than_expected_is_rejected() {
+        let command = SbwRead::new(0, 1).unwrap();
+        assert!(parse(&command, &[0x34, 0x12, 0xFF]).is_err());
+    }
+
+    #[test]
+    fn sbw_write_encodes_the_address_the_count_and_the_words() {
+        let words = [0x1234, 0x5678];
+        let command = SbwWrite::new(0x0001_C400, &words).unwrap();
+        assert_eq!(
+            command.encode_payload(),
+            [0x00, 0xC4, 0x01, 0x00, 2, 0x34, 0x12, 0x78, 0x56]
+        );
+    }
+
+    #[test]
+    fn transfer_sizes_are_limited() {
+        assert!(SbwWrite::new(0, &[0u16; 29]).is_ok());
+        assert!(SbwWrite::new(0, &[0u16; 30]).is_err());
+        assert!(SbwRead::new(0, 31).is_ok());
+        assert!(SbwRead::new(0, 32).is_err());
+    }
+}

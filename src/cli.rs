@@ -107,7 +107,6 @@ impl OnOff {
     }
 }
 
-// TODO collapse?
 #[derive(Clone, Copy, ValueEnum)]
 pub enum PinConfig {
     High,
