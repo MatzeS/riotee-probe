@@ -40,6 +40,7 @@ pub enum Command {
     Program {
         #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
         device: Device,
+        /// Firmware image: an ELF file for the nRF52, an Intel HEX file for the MSP430
         #[arg(short, long)]
         firmware: PathBuf,
         /// Do not read the firmware back to check it was written correctly

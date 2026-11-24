@@ -87,6 +87,7 @@ impl Target for Msp430Session {
         self.probe.send_riotee_command(vendor_commands::SbwResume)
     }
 
+    /// Flashes `firmware`, which must be an Intel HEX file.
     fn program(
         &mut self,
         firmware: &Path,

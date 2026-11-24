@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use probe_rs::flashing::{self, DownloadOptions, FlashProgress, HexLoader};
+use probe_rs::flashing::{self, DownloadOptions, ElfLoader, ElfOptions, FlashProgress};
 use probe_rs::probe::Probe;
 use probe_rs::{Core, Permissions, Session};
 
@@ -43,6 +43,7 @@ impl Target for Nrf52Session {
         Ok(())
     }
 
+    /// Flashes `firmware`, which must be an ELF file.
     fn program(
         &mut self,
         firmware: &Path,
@@ -53,7 +54,12 @@ impl Target for Nrf52Session {
         download.verify = options.verify;
         download.progress = progress;
 
-        flashing::download_file_with_options(&mut self.session, firmware, HexLoader, download)
-            .with_context(|| format!("programming {}", firmware.display()))
+        flashing::download_file_with_options(
+            &mut self.session,
+            firmware,
+            ElfLoader(ElfOptions::default()),
+            download,
+        )
+        .with_context(|| format!("programming {}", firmware.display()))
     }
 }
