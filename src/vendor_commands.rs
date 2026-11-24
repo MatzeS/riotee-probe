@@ -8,6 +8,7 @@ use anyhow::{Context, Result, bail};
 use probe_rs::probe::cmsisdap::{CmsisDap, VendorCommandId};
 
 const DAP_OK: u8 = 0x00;
+const DAP_PACKET_SIZE: usize = 64;
 
 /// Vendor command IDs/bytes.
 #[repr(u8)]
@@ -209,8 +210,24 @@ impl Command for GpioGet {
 
 #[derive(Clone, Copy, Debug)]
 pub struct SbwRead {
-    pub address: u32,
-    pub count: u8,
+    address: u32,
+    count: u8,
+}
+
+impl SbwRead {
+    // The read response packet contains the command byte (1B) and the status byte (1B).
+    // Each word is two byte.
+    pub const MAX_WORDS: usize = (DAP_PACKET_SIZE - 2) / 2;
+
+    pub fn new(address: u32, count: u8) -> Result<Self> {
+        if usize::from(count) > Self::MAX_WORDS {
+            bail!(
+                "cannot read {count} words at once, a single Spy-Bi-Wire read returns at most {}",
+                Self::MAX_WORDS
+            );
+        }
+        Ok(Self { address, count })
+    }
 }
 
 impl Command for SbwRead {
@@ -241,11 +258,29 @@ impl Command for SbwRead {
     }
 }
 
-// TODO document max number of words
 #[derive(Clone, Copy, Debug)]
 pub struct SbwWrite<'a> {
-    pub address: u32,
-    pub words: &'a [u16],
+    address: u32,
+    words: &'a [u16],
+}
+
+impl<'a> SbwWrite<'a> {
+    /// Request layout: `[command id | address | word count | words]`.
+    // The write request contains the command byte (1B), the address (4B) and
+    // the number of words (1B).
+    // Each word is two byte.
+    pub const MAX_WORDS: usize = (DAP_PACKET_SIZE - 1 - 4 - 1) / 2;
+
+    pub fn new(address: u32, words: &'a [u16]) -> Result<Self> {
+        if words.len() > Self::MAX_WORDS {
+            bail!(
+                "cannot write {} words at once, a single Spy-Bi-Wire write carries at most {}",
+                words.len(),
+                Self::MAX_WORDS
+            );
+        }
+        Ok(Self { address, words })
+    }
 }
 
 impl Command for SbwWrite<'_> {

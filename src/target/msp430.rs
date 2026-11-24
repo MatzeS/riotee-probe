@@ -33,16 +33,13 @@ impl<'p> Msp430<'p> {
     }
 
     fn write_words(&mut self, address: u32, words: &[u16]) -> Result<()> {
-        // TODO check input: word length
         self.probe
-            .send_riotee_command(vendor_commands::SbwWrite { address, words })
+            .send_riotee_command(vendor_commands::SbwWrite::new(address, words)?)
     }
 
-    fn read_words(&mut self, address: u32, count: usize) -> Result<Vec<u16>> {
-        self.probe.send_riotee_command(vendor_commands::SbwRead {
-            address,
-            count: count as u8,
-        })
+    fn read_words(&mut self, address: u32, count: u8) -> Result<Vec<u16>> {
+        self.probe
+            .send_riotee_command(vendor_commands::SbwRead::new(address, count)?)
     }
 
     pub fn program(&mut self, firmware: &Path, mut progress: FlashProgress<'_>) -> Result<()> {
@@ -80,15 +77,11 @@ impl<'p> Msp430<'p> {
         segments: &[intelhex::Segment],
         progress: &mut FlashProgress<'_>,
     ) -> Result<()> {
-        // The vendor command packets have a maximum size of 64 byte.
-        // Hence, the program write must be chunked into small write batches.
-        const MAX_PACKET_SIZE: usize = 64;
-        const PACKET_HEADER_LENGTH: usize = 6;
-        const MAX_WORDS_PER_PACKET: usize = (MAX_PACKET_SIZE - PACKET_HEADER_LENGTH) / 2;
-
         self.halt()?;
         for segment in segments {
-            for (address, chunk) in packetize(segment, MAX_WORDS_PER_PACKET) {
+            // Each chunk is written and then read back, so it has to fit both commands; the
+            // write limit is the smaller of the two.
+            for (address, chunk) in packetize(segment, vendor_commands::SbwWrite::MAX_WORDS) {
                 let write_start = Instant::now();
                 self.write_words(address, chunk)?;
                 progress.emit(ProgressEvent::Progress {
@@ -98,7 +91,9 @@ impl<'p> Msp430<'p> {
                 });
 
                 let verify_start = Instant::now();
-                let readback = self.read_words(address, chunk.len())?;
+                let count = u8::try_from(chunk.len())
+                    .expect("packetize bounds chunks by SbwWrite::MAX_WORDS");
+                let readback = self.read_words(address, count)?;
                 if readback != chunk {
                     bail!("verification failed at 0x{address:08X}");
                 }
