@@ -42,7 +42,6 @@ pub enum Command {
         #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
         device: Device,
         /// Firmware image: an ELF file for the nRF52, an Intel HEX file for the MSP430
-        #[arg(short, long)]
         firmware: PathBuf,
         /// Do not read the firmware back to check it was written correctly
         #[arg(long)]
@@ -78,21 +77,21 @@ pub enum Command {
 pub enum GpioCommand {
     /// Configure a pin's direction
     Dir {
-        #[arg(short, long)]
+        /// Pin to configure
         pin: u8,
-        #[arg(short, long, value_enum)]
+        #[arg(value_enum)]
         direction: Direction,
     },
     /// Drive a pin high or low
     Set {
-        #[arg(short, long)]
+        /// Pin to drive
         pin: u8,
-        #[arg(short, long, value_enum)]
+        #[arg(value_enum)]
         state: PinState,
     },
     /// Read a pin's state
     Get {
-        #[arg(short, long)]
+        /// Pin to read
         pin: u8,
     },
 }

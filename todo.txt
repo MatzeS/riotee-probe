@@ -1,15 +1,15 @@
 2026-11-18 remove abbreviations (dir)
-2026-11-18 remove named arguments that are required
+x 2026-11-24 2026-11-18 remove named arguments that are required
 2026-11-18 dead code remova
 2026-11-18 check for consistency issues
-2026-11-19 expose bootloader on cli
-2026-11-24 error type
+x 2026-11-24 2026-11-19 expose bootloader on cli
+x 2026-11-24 2026-11-24 error type
 2026-11-24 rename to riotee-probe and publish
 2026-11-24 add prek
 2026-11-24 add ci
 2026-11-24 add license
 2026-11-24 add readme
-2026-11-24 check all doc warnings
+x 2026-11-24 2026-11-24 check all doc warnings
 2026-11-24 add tests for vendor command encoding and response parsing, no hardware needed
 2026-11-24 document the public api, consider #![warn(missing_docs)]
 2026-11-24 remove the stale 'not reviewed' marker in cli/progress.rs
