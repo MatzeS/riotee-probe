@@ -6,6 +6,7 @@ use crate::target::{ProgramOptions, Target};
 use crate::{GpioConfig, KindMarker, Level, Riotee};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+use probe_rs::probe::DebugProbeSelector;
 
 pub mod progress;
 
@@ -16,11 +17,9 @@ pub mod progress;
     about = "Control Riotee probes and boards"
 )]
 pub struct Cli {
-    /// Equivalent to `probe-rs --probe` argument.
-    // TODO this only matches a serial number, while probe-rs takes VID:PID[:Serial]. Either
-    // accept the same syntax or stop claiming equivalence in the help text.
+    /// Device to use, in probe-rs's `VID:PID[-Interface][:Serial]` syntax
     #[arg(long, global = true)]
-    pub probe: Option<String>,
+    pub probe: Option<DebugProbeSelector>,
 
     #[command(subcommand)]
     pub command: Command,
@@ -155,8 +154,8 @@ impl Cli {
         }
 
         // Create riotee probe for all probe related commands
-        let mut riotee = match self.probe.as_deref() {
-            Some(serial) => Riotee::open_by_serial(serial)?,
+        let mut riotee = match &self.probe {
+            Some(selector) => Riotee::open(selector)?,
             None => Riotee::open_unique()?,
         };
 
@@ -215,14 +214,14 @@ impl Cli {
             return Ok(());
         }
 
-        println!("{:<14}{:<24}Firmware", "Kind", "Serial");
+        println!("{:<14}{:<10}Selector", "Kind", "Firmware");
         for device in devices {
             let firmware = device.firmware_version.as_deref().unwrap_or("unknown");
             println!(
-                "{:<14}{:<24}{}",
-                device.kind.name(),
-                device.serial_number,
-                firmware
+                "{:<14}{:<10}{}",
+                device.kind().name(),
+                firmware,
+                device.selector
             );
         }
         Ok(())
