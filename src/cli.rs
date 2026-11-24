@@ -159,7 +159,7 @@ impl Cli {
             None => Riotee::open_unique()?,
         };
 
-        match self.command {
+        let result = match self.command {
             Command::Bypass { state } => riotee.try_as_board()?.set_bypass(state.is_on()),
             Command::TargetPower { state } => riotee.set_target_power(state.is_on()),
 
@@ -202,7 +202,9 @@ impl Cli {
             Command::Bootloader => riotee.enter_bootloader(),
 
             Command::List => unreachable!("handled above"),
-        }
+        };
+        result?;
+        Ok(())
     }
 }
 

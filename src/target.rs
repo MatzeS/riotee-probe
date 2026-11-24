@@ -1,7 +1,8 @@
 use std::path::Path;
 
-use anyhow::Result;
 use probe_rs::flashing::FlashProgress;
+
+use crate::error::Result;
 
 pub mod msp430;
 pub mod nrf52;

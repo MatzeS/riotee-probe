@@ -13,3 +13,4 @@ clap = { version = "4.6.8", features = ["derive"] }
 ihex = "3.0.0"
 indicatif = "0.17.11"
 probe-rs = { git = "https://github.com/probe-rs/probe-rs", rev = "be11fbfe854142fa91842f6f354ae14eecd85be5" }
+thiserror = "2.0.21"

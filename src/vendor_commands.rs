@@ -4,8 +4,11 @@
 //! <https://github.com/NessieCircuits/Riotee_ProbeSoftware>
 //! `firmware/src/probe_vendor.c`
 
-use anyhow::{Context, Result, bail};
 use probe_rs::probe::cmsisdap::{CmsisDap, VendorCommandId};
+
+use crate::error::{Error, ResponseError, Result};
+
+pub type ResponseResult<T> = std::result::Result<T, ResponseError>;
 
 const DAP_OK: u8 = 0x00;
 const DAP_PACKET_SIZE: usize = 64;
@@ -43,15 +46,15 @@ pub trait Command {
 
     fn encode_payload(&self) -> Vec<u8>;
 
-    fn parse_response(&self, data: &mut &[u8]) -> Result<Self::Response>;
+    fn parse_response(&self, data: &mut &[u8]) -> ResponseResult<Self::Response>;
 }
 
-fn read_exact<'a>(data: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
+fn read_exact<'a>(data: &mut &'a [u8], len: usize) -> ResponseResult<&'a [u8]> {
     if data.len() < len {
-        bail!(
-            "expected {len} more response bytes, but {} remain",
-            data.len()
-        );
+        return Err(ResponseError::Truncated {
+            expected: len,
+            remaining: data.len(),
+        });
     }
     let (head, tail) = data.split_at(len);
     *data = tail;
@@ -62,24 +65,23 @@ fn read_all<'a>(data: &mut &'a [u8]) -> &'a [u8] {
     read_exact(data, data.len()).expect("len bytes are safe to consume")
 }
 
-fn read_u8(data: &mut &[u8]) -> Result<u8> {
+fn read_u8(data: &mut &[u8]) -> ResponseResult<u8> {
     let data = read_exact(data, 1)?;
     Ok(data[0])
 }
 
-fn read_u16(data: &mut &[u8]) -> Result<u16> {
+fn read_u16(data: &mut &[u8]) -> ResponseResult<u16> {
     let bytes = read_exact(data, size_of::<u16>())?;
     Ok(u16::from_le_bytes(
         bytes.try_into().expect("read_exact returned two bytes"),
     ))
 }
 
-fn check_empty(data: &[u8]) -> Result<()> {
+fn check_empty(data: &[u8]) -> ResponseResult<()> {
     if !data.is_empty() {
-        bail!(
-            "response not fully parsed, {} bytes remain: {data:02X?}",
-            data.len()
-        );
+        return Err(ResponseError::Trailing {
+            trailing: data.to_vec(),
+        });
     }
     Ok(())
 }
@@ -90,31 +92,21 @@ pub trait CmsisDapExt {
 
 impl CmsisDapExt for CmsisDap {
     fn send_riotee_command<C: Command>(&mut self, command: C) -> Result<C::Response> {
+        let id = C::ID.get();
+        let bad_response = |source| Error::BadResponse { id, source };
+
         let response = self
             .send_vendor_command(C::ID, &command.encode_payload())
-            .with_context(|| format!("sending vendor command 0x{:02X}", C::ID.get()))?;
+            .map_err(|source| Error::SendCommand { id, source })?;
 
         let mut data = response.as_slice();
-        let status = read_u8(&mut data).context("probe sent an empty vendor command response")?;
+        let status = read_u8(&mut data).map_err(bad_response)?;
         if status != DAP_OK {
-            bail!(
-                "probe returned error code 0x{status:02X} for vendor command 0x{:02X}",
-                C::ID.get()
-            );
+            return Err(Error::CommandFailed { id, status });
         }
 
-        let parsed = command.parse_response(&mut data).with_context(|| {
-            format!(
-                "parsing the response of vendor command 0x{:02X}",
-                C::ID.get()
-            )
-        })?;
-        check_empty(data).with_context(|| {
-            format!(
-                "parsing the response of vendor command 0x{:02X}",
-                C::ID.get()
-            )
-        })?;
+        let parsed = command.parse_response(&mut data).map_err(bad_response)?;
+        check_empty(data).map_err(bad_response)?;
         Ok(parsed)
     }
 }
@@ -133,7 +125,7 @@ macro_rules! unit_command {
                 Vec::new()
             }
 
-            fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
+            fn parse_response(&self, _data: &mut &[u8]) -> ResponseResult<()> {
                 Ok(())
             }
         }
@@ -168,7 +160,7 @@ macro_rules! toggle_command {
                 vec![self.on as u8]
             }
 
-            fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
+            fn parse_response(&self, _data: &mut &[u8]) -> ResponseResult<()> {
                 Ok(())
             }
         }
@@ -190,7 +182,7 @@ impl Command for Version {
         Vec::new()
     }
 
-    fn parse_response(&self, data: &mut &[u8]) -> Result<String> {
+    fn parse_response(&self, data: &mut &[u8]) -> ResponseResult<String> {
         let version = read_all(data);
         // Firmware versions before 1.1.0 send a trailing NUL over the wire.
         let trimmed = version
@@ -216,10 +208,7 @@ pub enum GpioConfig {
 pub const GPIO_COUNT: u8 = 4;
 fn check_gpio_pin(pin: u8) -> Result<()> {
     if pin >= GPIO_COUNT {
-        bail!(
-            "GPIO pin {pin} does not exist, the Riotee Probe has {GPIO_COUNT} GPIO pins (0 through {})",
-            GPIO_COUNT - 1
-        );
+        return Err(Error::NoSuchGpioPin { pin });
     }
     Ok(())
 }
@@ -250,7 +239,7 @@ impl Command for GpioSet {
         vec![self.pin, state]
     }
 
-    fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
+    fn parse_response(&self, _data: &mut &[u8]) -> ResponseResult<()> {
         Ok(())
     }
 }
@@ -275,12 +264,12 @@ impl Command for GpioGet {
         vec![self.pin]
     }
 
-    fn parse_response(&self, data: &mut &[u8]) -> Result<Level> {
+    fn parse_response(&self, data: &mut &[u8]) -> ResponseResult<Level> {
         let state = read_u8(data)?;
         let level = match state {
             0 => Level::Low,
             1 => Level::High,
-            _ => bail!("probe reported an unknown GPIO level 0x{state:02X}"),
+            value => return Err(ResponseError::UnknownGpioLevel { value }),
         };
         Ok(level)
     }
@@ -299,10 +288,11 @@ impl SbwRead {
 
     pub fn new(address: u32, count: u8) -> Result<Self> {
         if usize::from(count) > Self::MAX_WORDS {
-            bail!(
-                "cannot read {count} words at once, a single Spy-Bi-Wire read returns at most {}",
-                Self::MAX_WORDS
-            );
+            return Err(Error::TooManyWords {
+                operation: "read",
+                words: count.into(),
+                max: Self::MAX_WORDS,
+            });
         }
         Ok(Self { address, count })
     }
@@ -319,7 +309,7 @@ impl Command for SbwRead {
         payload
     }
 
-    fn parse_response(&self, data: &mut &[u8]) -> Result<Vec<u16>> {
+    fn parse_response(&self, data: &mut &[u8]) -> ResponseResult<Vec<u16>> {
         (0..self.count).map(|_| read_u16(data)).collect()
     }
 }
@@ -339,11 +329,11 @@ impl<'a> SbwWrite<'a> {
 
     pub fn new(address: u32, words: &'a [u16]) -> Result<Self> {
         if words.len() > Self::MAX_WORDS {
-            bail!(
-                "cannot write {} words at once, a single Spy-Bi-Wire write carries at most {}",
-                words.len(),
-                Self::MAX_WORDS
-            );
+            return Err(Error::TooManyWords {
+                operation: "write",
+                words: words.len(),
+                max: Self::MAX_WORDS,
+            });
         }
         Ok(Self { address, words })
     }
@@ -363,7 +353,7 @@ impl Command for SbwWrite<'_> {
         payload
     }
 
-    fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
+    fn parse_response(&self, _data: &mut &[u8]) -> ResponseResult<()> {
         Ok(())
     }
 }

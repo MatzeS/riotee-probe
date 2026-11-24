@@ -944,6 +944,7 @@ dependencies = [
  "ihex",
  "indicatif",
  "probe-rs",
+ "thiserror",
 ]
 
 [[package]]

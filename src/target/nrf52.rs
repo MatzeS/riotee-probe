@@ -1,10 +1,11 @@
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
 use probe_rs::flashing::{self, DownloadOptions, ElfLoader, ElfOptions, FlashProgress};
 use probe_rs::probe::Probe;
 use probe_rs::{Core, Permissions, Session};
+
+use crate::error::{Error, Result};
 
 use super::{ProgramOptions, Target};
 
@@ -17,7 +18,7 @@ impl Nrf52Session {
         const CHIP: &str = "nRF52833_xxAA";
         let session = probe
             .attach(CHIP, Permissions::new())
-            .context("attaching to nRF52 target")?;
+            .map_err(|source| Error::Attach { chip: CHIP, source })?;
         Ok(Self { session })
     }
 
@@ -61,6 +62,9 @@ impl Target for Nrf52Session {
             ElfLoader(ElfOptions::default()),
             download,
         )
-        .with_context(|| format!("programming {}", firmware.display()))
+        .map_err(|source| Error::Download {
+            path: firmware.to_path_buf(),
+            source: Box::new(source),
+        })
     }
 }

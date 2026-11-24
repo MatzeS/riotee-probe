@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::{Context, Result, bail};
 use probe_rs::flashing::{FlashProgress, ProgressEvent, ProgressOperation};
 use probe_rs::probe::cmsisdap::CmsisDap;
 
+use crate::error::{Error, Result};
 use crate::intelhex::{self, packetize};
 use crate::vendor_commands::{self, CmsisDapExt};
 
@@ -82,7 +82,7 @@ impl Msp430Session {
                     .expect("packetize bounds chunks by SbwRead::MAX_WORDS");
                 let readback = self.read_words(address, count)?;
                 if readback != chunk {
-                    bail!("verification failed at 0x{address:08X}");
+                    return Err(Error::VerificationFailed { address });
                 }
                 progress.emit(ProgressEvent::Progress {
                     operation: ProgressOperation::Verify,
@@ -115,10 +115,14 @@ impl Target for Msp430Session {
         options: ProgramOptions,
         mut progress: FlashProgress<'_>,
     ) -> Result<()> {
-        let contents = std::fs::read_to_string(firmware)
-            .with_context(|| format!("reading {}", firmware.display()))?;
-        let segments = intelhex::parse_words(&contents)
-            .with_context(|| format!("parsing {}", firmware.display()))?;
+        let contents = std::fs::read_to_string(firmware).map_err(|source| Error::ReadFirmware {
+            path: firmware.to_path_buf(),
+            source,
+        })?;
+        let segments = intelhex::parse_words(&contents).map_err(|source| Error::ParseFirmware {
+            path: firmware.to_path_buf(),
+            source,
+        })?;
 
         let total_bytes = segments
             .iter()

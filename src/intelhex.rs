@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result, bail};
 use ihex::{Reader, Record};
+
+use crate::error::HexError;
 
 /// A segment of contiguous 16-bit words starting at `address`.
 pub struct Segment {
@@ -11,13 +12,13 @@ pub struct Segment {
 
 /// Parses Intel HEX data into contiguous 16-bit word segments, merging
 /// adjacent data records the way a flat memory image would be laid out.
-pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
+pub fn parse_words(contents: &str) -> Result<Vec<Segment>, HexError> {
     // A byte map is not efficient, but unlikely to be critical here.
     let mut bytes: BTreeMap<u32, u8> = BTreeMap::new();
     let mut base: u32 = 0;
 
     for record in Reader::new(contents) {
-        match record.context("parsing Intel HEX record")? {
+        match record? {
             Record::Data { offset, value } => {
                 let start = base + offset as u32;
                 for (i, byte) in value.into_iter().enumerate() {
@@ -41,13 +42,13 @@ pub fn parse_words(contents: &str) -> Result<Vec<Segment>> {
             next_addr += 1;
         }
         if start % 2 != 0 {
-            bail!("segment at 0x{start:08X} does not start on a 16-bit boundary");
+            return Err(HexError::Unaligned { address: start });
         }
         if run.len() % 2 != 0 {
-            bail!(
-                "segment at 0x{start:08X} has an odd number of bytes ({})",
-                run.len()
-            );
+            return Err(HexError::OddLength {
+                address: start,
+                len: run.len(),
+            });
         }
         let words = run
             .as_chunks::<2>()

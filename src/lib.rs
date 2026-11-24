@@ -7,6 +7,7 @@
 //! These features are also programmatically available by the library implementation.
 
 pub mod cli;
+pub mod error;
 pub mod intelhex;
 pub mod target;
 pub mod vendor_commands;
@@ -14,12 +15,12 @@ pub mod vendor_commands;
 use std::any::Any;
 use std::marker::PhantomData;
 
-use anyhow::{Context, Result, bail};
 use probe_rs::probe::DebugProbeSelector;
 use probe_rs::probe::ProbeFactory;
 use probe_rs::probe::cmsisdap::{CmsisDap, CmsisDapFactory};
 use probe_rs::probe::list::Lister;
 
+use crate::error::{Error, Result};
 use crate::vendor_commands::CmsisDapExt;
 pub use crate::vendor_commands::{GPIO_COUNT, GpioConfig, Level};
 
@@ -170,7 +171,10 @@ impl Riotee<Unknown> {
 
     fn require_kind(&self, kind: Kind) -> Result<()> {
         if self.kind != kind {
-            bail!("expected a {}, found a {}", kind.name(), self.kind.name());
+            return Err(Error::WrongKind {
+                expected: kind,
+                found: self.kind,
+            });
         }
         Ok(())
     }
@@ -193,12 +197,13 @@ impl Riotee<Unknown> {
         candidates.retain(|candidate| selector.matches_selector(candidate));
 
         match candidates.len() {
-            0 => bail!("no connected Riotee device matches {selector}"),
+            0 => Err(Error::NoMatch {
+                selector: selector.clone(),
+            }),
             1 => Self::open_device(&candidates[0]),
-            n => bail!(
-                "{n} connected Riotee devices match {selector}, must be unique:\n{}",
-                describe(&candidates)
-            ),
+            _ => Err(Error::Ambiguous {
+                selectors: candidates,
+            }),
         }
     }
 
@@ -210,22 +215,21 @@ impl Riotee<Unknown> {
         let candidates = list();
 
         match candidates.len() {
-            0 => bail!("no Riotee device is connected"),
+            0 => Err(Error::NoDevice),
             1 => Self::open_device(&candidates[0]),
-            n => bail!(
-                "{n} Riotee devices are connected, pass --probe <selector> to pick one:\n{}",
-                describe(&candidates)
-            ),
+            _ => Err(Error::Ambiguous {
+                selectors: candidates,
+            }),
         }
     }
 
     fn open_device(selector: &DebugProbeSelector) -> Result<Self> {
-        let kind = selector
-            .riotee_kind()
-            .context("selector does not identify a Riotee probe or board")?;
+        let kind = selector.riotee_kind().ok_or_else(|| Error::NotRiotee {
+            selector: selector.clone(),
+        })?;
         let probe = CmsisDapFactory
             .open(selector)
-            .with_context(|| format!("opening {} as a CMSIS-DAP device", kind.name()))?;
+            .map_err(|source| Error::OpenProbe { kind, source })?;
         let probe = *(probe as Box<dyn Any>)
             .downcast::<CmsisDap>()
             .expect("CmsisDapFactory only ever yields a CmsisDap");
@@ -235,21 +239,6 @@ impl Riotee<Unknown> {
             _marker: PhantomData,
         })
     }
-}
-
-/// Lists the given devices one per line, for an error message.
-fn describe(selectors: &[DebugProbeSelector]) -> String {
-    // This method should be removed once an error type is defined
-    selectors
-        .iter()
-        .map(|selector| {
-            let kind = selector
-                .riotee_kind()
-                .expect("list() only returns Riotee selectors");
-            format!("  {kind} as {selector}", kind = kind.name())
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 impl<K: KindMarker> Riotee<K> {
