@@ -174,10 +174,7 @@ where
 impl Riotee<Unknown> {
     /// The caller needs to verify that `self` is compatible with whatever `K` this is being
     /// downcast to.
-    // TODO this is not unsafe: no memory safety is involved, `PhantomData<K>` carries no data,
-    // and a wrong `K` only means the device rejects a command it does not implement. Make it a
-    // plain fn, then nothing in the crate needs unsafe and it can be forbidden crate-wide.
-    unsafe fn downcast<K: KindMarker>(self) -> Riotee<K> {
+    fn downcast<K: KindMarker>(self) -> Riotee<K> {
         Riotee {
             dap: self.dap,
             kind: self.kind,
@@ -192,8 +189,7 @@ impl Riotee<Unknown> {
             bail!("not a board");
         }
 
-        // Safety: self is a board
-        Ok(unsafe { self.downcast() })
+        Ok(self.downcast())
     }
 
     pub fn try_as_probe(self) -> Result<Riotee<Probe>> {
@@ -201,8 +197,7 @@ impl Riotee<Unknown> {
             bail!("not a probe");
         }
 
-        // Safety: self is a probe
-        Ok(unsafe { self.downcast() })
+        Ok(self.downcast())
     }
 
     /// Opens the Riotee device identified by `selector`.
