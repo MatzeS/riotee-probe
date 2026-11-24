@@ -10,7 +10,6 @@ use crate::vendor_commands::{self, CmsisDapExt};
 
 use super::Target;
 
-/// A connected Spy-Bi-Wire session. Disconnects automatically when dropped.
 pub struct Msp430<'p> {
     probe: &'p mut CmsisDap,
 }
