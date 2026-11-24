@@ -30,12 +30,52 @@ pub enum CommandByte {
 }
 
 pub trait Command {
+    // TODO should this be u8 (otherwise it is still closed set)
     const BYTE: CommandByte;
     type Response;
 
     fn encode_payload(&self) -> Vec<u8>;
 
-    fn parse_response(&self, data: &[u8]) -> Result<Self::Response>;
+    fn parse_response(&self, data: &mut &[u8]) -> Result<Self::Response>;
+}
+
+// TODO should these be public?
+pub fn read_exact<'a>(data: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
+    if data.len() < len {
+        bail!(
+            "expected {len} more response bytes, but {} remain",
+            data.len()
+        );
+    }
+    let (head, tail) = data.split_at(len);
+    *data = tail;
+    Ok(head)
+}
+
+pub fn read_all<'a>(data: &mut &'a [u8]) -> &'a [u8] {
+    read_exact(data, data.len()).expect("len bytes are safe to consume")
+}
+
+pub fn read_u8(data: &mut &[u8]) -> Result<u8> {
+    let data = read_exact(data, 1)?;
+    Ok(data[0])
+}
+
+pub fn read_u16(data: &mut &[u8]) -> Result<u16> {
+    let bytes = read_exact(data, size_of::<u16>())?;
+    Ok(u16::from_le_bytes(
+        bytes.try_into().expect("read_exact returned two bytes"),
+    ))
+}
+
+pub fn check_empty(data: &[u8]) -> Result<()> {
+    if !data.is_empty() {
+        bail!(
+            "response not fully parsed, {} bytes remain: {data:02X?}",
+            data.len()
+        );
+    }
+    Ok(())
 }
 
 pub trait CmsisDapExt {
@@ -47,27 +87,26 @@ impl CmsisDapExt for CmsisDap {
         let id = VendorCommandId::new(C::BYTE as u8)
             .expect("all riotee vendor command ids fall in the 0x80..=0xFE vendor range");
 
+        let describe = || format!("vendor command {:?} (0x{:02X})", C::BYTE, C::BYTE as u8);
+
         let response = self
             .send_vendor_command(id, &command.encode_payload())
-            .with_context(|| {
-                format!(
-                    "sending vendor command {:?} (0x{:02X})",
-                    C::BYTE,
-                    C::BYTE as u8
-                )
-            })?;
+            .with_context(|| format!("sending {}", describe()))?;
 
-        let (&status, data) = response
-            .split_first()
-            .context("probe sent an empty vendor command response")?;
+        let mut data = response.as_slice();
+        let status = read_u8(&mut data).context("probe sent an empty vendor command response")?;
         if status != DAP_OK {
             bail!(
-                "probe returned error code 0x{status:02X} for command {:?} (0x{:02X})",
-                C::BYTE,
-                C::BYTE as u8
+                "probe returned error code 0x{status:02X} for {}",
+                describe()
             );
         }
-        command.parse_response(data)
+
+        let parsed = command
+            .parse_response(&mut data)
+            .with_context(|| format!("parsing the response of {}", describe()))?;
+        check_empty(data).with_context(|| format!("parsing the response of {}", describe()))?;
+        Ok(parsed)
     }
 }
 
@@ -85,7 +124,7 @@ macro_rules! unit_command {
                 Vec::new()
             }
 
-            fn parse_response(&self, _data: &[u8]) -> Result<()> {
+            fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
                 Ok(())
             }
         }
@@ -119,7 +158,7 @@ macro_rules! toggle_command {
                 vec![self.on as u8]
             }
 
-            fn parse_response(&self, _data: &[u8]) -> Result<()> {
+            fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
                 Ok(())
             }
         }
@@ -141,12 +180,13 @@ impl Command for Version {
         Vec::new()
     }
 
-    fn parse_response(&self, data: &[u8]) -> Result<String> {
+    fn parse_response(&self, data: &mut &[u8]) -> Result<String> {
+        let version = read_all(data);
         // Firmware versions before 1.1.0 send a trailing NUL over the wire.
-        let trimmed = data
+        let trimmed = version
             .iter()
             .position(|&b| b == 0)
-            .map_or(data, |nul| &data[..nul]);
+            .map_or(version, |nul| &version[..nul]);
         Ok(String::from_utf8_lossy(trimmed).into_owned())
     }
 }
@@ -200,8 +240,7 @@ impl Command for GpioSet {
         vec![self.pin, state]
     }
 
-    fn parse_response(&self, _data: &[u8]) -> Result<()> {
-        // TODO check the response data is empty, here and everywhere else.
+    fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
         Ok(())
     }
 }
@@ -226,10 +265,11 @@ impl Command for GpioGet {
         vec![self.pin]
     }
 
-    fn parse_response(&self, data: &[u8]) -> Result<Level> {
-        let &byte = data.first().context("probe sent an empty GPIO response")?;
-        // TODO check the remaining response data is empty (here and everywehre else)
-        Ok(if byte != 0 { Level::High } else { Level::Low })
+    fn parse_response(&self, data: &mut &[u8]) -> Result<Level> {
+        let state = read_u8(data)?;
+        // TODO match on state, use the exact value instead of catch all, error on unxepcted value
+        // TODO do not inline in Ok()
+        Ok(if state != 0 { Level::High } else { Level::Low })
     }
 }
 
@@ -266,20 +306,8 @@ impl Command for SbwRead {
         payload
     }
 
-    fn parse_response(&self, data: &[u8]) -> Result<Vec<u16>> {
-        let count = self.count as usize;
-        if data.len() < count * 2 {
-            bail!(
-                "probe returned {} bytes for a {count}-word read",
-                data.len()
-            );
-        }
-        Ok(data[..count * 2]
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|&w| u16::from_le_bytes(w))
-            .collect())
+    fn parse_response(&self, data: &mut &[u8]) -> Result<Vec<u16>> {
+        (0..self.count).map(|_| read_u16(data)).collect()
     }
 }
 
@@ -322,9 +350,7 @@ impl Command for SbwWrite<'_> {
         payload
     }
 
-    fn parse_response(&self, _data: &[u8]) -> Result<()> {
-        // TODO this (and maybe all) commands should send an OK return code,
-        // we hould verify that and bubble it up
+    fn parse_response(&self, _data: &mut &[u8]) -> Result<()> {
         Ok(())
     }
 }
