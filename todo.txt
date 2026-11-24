@@ -1,7 +1,7 @@
 x 2026-11-24 2026-11-18 remove abbreviations (dir)
 x 2026-11-24 2026-11-18 remove named arguments that are required
 x 2026-11-24 2026-11-18 dead code remova
-2026-11-18 check for consistency issues
+x 2026-11-24 2026-11-18 check for consistency issues
 x 2026-11-24 2026-11-19 expose bootloader on cli
 x 2026-11-24 2026-11-24 error type
 2026-11-24 rename to riotee-probe and publish

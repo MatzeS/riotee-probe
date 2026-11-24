@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::target::msp430::Msp430Session;
 use crate::target::nrf52::Nrf52Session;
-use crate::target::{ProgramOptions, Target};
+use crate::target::{ProgramOptions, Target as TargetSession};
 use crate::{GpioConfig, KindMarker, Level, Riotee};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -17,7 +17,7 @@ pub mod progress;
     about = "Control Riotee probes and boards"
 )]
 pub struct Cli {
-    /// Device to use, in probe-rs's `VID:PID[-Interface][:Serial]` syntax
+    /// Riotee device to use, in probe-rs's `VID:PID[-Interface][:Serial]` syntax
     #[arg(long, global = true)]
     pub probe: Option<DebugProbeSelector>,
 
@@ -39,8 +39,8 @@ pub enum Command {
     },
     /// Flash firmware onto the target
     Program {
-        #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
-        device: Device,
+        #[arg(short, long, value_enum, default_value_t = Target::Nrf52)]
+        target: Target,
         /// Firmware image: an ELF file for the nRF52, an Intel HEX file for the MSP430
         firmware: PathBuf,
         /// Do not read the firmware back to check it was written correctly
@@ -49,18 +49,18 @@ pub enum Command {
     },
     /// Reset the target
     Reset {
-        #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
-        device: Device,
+        #[arg(short, long, value_enum, default_value_t = Target::Nrf52)]
+        target: Target,
     },
     /// Halt the target
     Halt {
-        #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
-        device: Device,
+        #[arg(short, long, value_enum, default_value_t = Target::Nrf52)]
+        target: Target,
     },
     /// Resume the target
     Resume {
-        #[arg(short, long, value_enum, default_value_t = Device::Nrf52)]
-        device: Device,
+        #[arg(short, long, value_enum, default_value_t = Target::Nrf52)]
+        target: Target,
     },
     /// Control GPIOs (Riotee Probe only)
     Gpio {
@@ -90,7 +90,7 @@ pub enum GpioCommand {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-pub enum Device {
+pub enum Target {
     Nrf52,
     Msp430,
 }
@@ -144,22 +144,22 @@ impl Cli {
             Command::TargetPower { state } => riotee.set_target_power(state.into()),
 
             Command::Program {
-                device,
+                target,
                 firmware,
                 skip_verify,
             } => {
                 let options = ProgramOptions {
                     verify: !skip_verify,
                 };
-                open_target(riotee, device)?.program(
+                open_target(riotee, target)?.program(
                     &firmware,
                     options,
                     progress::indicatif_progress(),
                 )
             }
-            Command::Reset { device } => open_target(riotee, device)?.reset(),
-            Command::Halt { device } => open_target(riotee, device)?.halt(),
-            Command::Resume { device } => open_target(riotee, device)?.resume(),
+            Command::Reset { target } => open_target(riotee, target)?.reset(),
+            Command::Halt { target } => open_target(riotee, target)?.halt(),
+            Command::Resume { target } => open_target(riotee, target)?.resume(),
 
             Command::Gpio { command } => {
                 let mut riotee = riotee.try_as_probe()?;
@@ -205,9 +205,9 @@ fn print_devices() -> Result<()> {
     Ok(())
 }
 
-fn open_target<K: KindMarker>(riotee: Riotee<K>, device: Device) -> Result<Box<dyn Target>> {
-    Ok(match device {
-        Device::Nrf52 => Box::new(Nrf52Session::attach(riotee.into_probe_rs())?),
-        Device::Msp430 => Box::new(Msp430Session::connect(riotee.into_cmsisdap())?),
+fn open_target<K: KindMarker>(riotee: Riotee<K>, target: Target) -> Result<Box<dyn TargetSession>> {
+    Ok(match target {
+        Target::Nrf52 => Box::new(Nrf52Session::attach(riotee.into_probe_rs())?),
+        Target::Msp430 => Box::new(Msp430Session::connect(riotee.into_cmsisdap())?),
     })
 }

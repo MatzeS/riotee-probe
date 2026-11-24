@@ -108,7 +108,7 @@ pub fn list_info() -> Vec<RioteeInfo> {
         .map(|selector| {
             let firmware_version = Riotee::open_device(&selector)
                 .ok()
-                .and_then(|mut riotee| riotee.firmware_version().ok());
+                .and_then(|mut riotee| riotee.read_firmware_version().ok());
             RioteeInfo {
                 selector,
                 firmware_version,
@@ -256,7 +256,7 @@ impl<K: KindMarker> Riotee<K> {
         probe_rs::probe::Probe::new(self.dap)
     }
 
-    pub fn firmware_version(&mut self) -> Result<String> {
+    pub fn read_firmware_version(&mut self) -> Result<String> {
         self.dap.send_riotee_command(vendor_commands::Version)
     }
 
