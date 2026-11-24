@@ -141,10 +141,11 @@ macro_rules! unit_command {
 }
 
 unit_command!(SbwConnect);
-unit_command!(SbwDisconnect);
 
-// These commands rquire an active SwbSession, hence connect must be send before.
-// TODO the interface does not defend against this
+// SbwConnect must be sent before any other Spy-Bi-Wire command, SbwRead and SbwWrite below
+// included. The firmware keeps no session state and answers DAP_OK either way, so Msp430,
+// which connects on construction and disconnects on drop, is what keeps the order.
+unit_command!(SbwDisconnect);
 unit_command!(SbwReset);
 unit_command!(SbwHalt);
 unit_command!(SbwResume);
