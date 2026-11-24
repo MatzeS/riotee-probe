@@ -19,7 +19,7 @@ pub enum Error {
     #[error("{} Riotee devices match, must be unique:\n{}", .selectors.len(), describe_selectors(.selectors))]
     Ambiguous { selectors: Vec<DebugProbeSelector> },
 
-    #[error("{selector} does not identify a Riotee probe or board")]
+    #[error("{selector} does not identify a Riotee device")]
     NotRiotee { selector: DebugProbeSelector },
 
     #[error("expected a {}, found a {}", expected.name(), found.name())]

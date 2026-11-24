@@ -30,12 +30,12 @@ pub enum Command {
     /// Switch the power-bypass measurement switch (Riotee Board only)
     Bypass {
         #[arg(value_enum)]
-        state: OnOff,
+        state: Switch,
     },
     /// Switch the target's fixed power supply
     TargetPower {
         #[arg(value_enum)]
-        state: OnOff,
+        state: Switch,
     },
     /// Flash firmware onto the target
     Program {
@@ -96,14 +96,17 @@ pub enum Device {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-pub enum OnOff {
+pub enum Switch {
     On,
     Off,
 }
 
-impl OnOff {
-    pub fn is_on(self) -> bool {
-        matches!(self, OnOff::On)
+impl From<Switch> for bool {
+    fn from(state: Switch) -> Self {
+        match state {
+            Switch::On => true,
+            Switch::Off => false,
+        }
     }
 }
 
@@ -137,8 +140,8 @@ impl Cli {
         };
 
         let result = match self.command {
-            Command::Bypass { state } => riotee.try_as_board()?.set_bypass(state.is_on()),
-            Command::TargetPower { state } => riotee.set_target_power(state.is_on()),
+            Command::Bypass { state } => riotee.try_as_board()?.set_bypass(state.into()),
+            Command::TargetPower { state } => riotee.set_target_power(state.into()),
 
             Command::Program {
                 device,
@@ -185,7 +188,7 @@ impl Cli {
 fn print_devices() -> Result<()> {
     let devices = crate::list_info();
     if devices.is_empty() {
-        eprintln!("No Riotee probes or boards connected");
+        eprintln!("no Riotee device is connected");
         return Ok(());
     }
 
