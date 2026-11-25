@@ -13,6 +13,10 @@ The impelmentation is refactored to be used as libarary for programatic interact
 
 ## Development Status
 
+`riotee-probe` depends on recent patches of `probe-rs`, which have not yet landed on crates.io at this time (2026-11-25).
+`riotee-probe` will be pushed to `crates.io`, once `probe-rs v0.33.0` lands, until then you may use this as git dependency.
+
+
 `riotee-probe` is at an early release stage.
 Major changes may be merged without major version bumb prior to `1.0.0` release.
 
