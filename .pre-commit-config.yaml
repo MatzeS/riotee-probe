@@ -8,6 +8,7 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: check-merge-conflict
+      - id: detect-private-key
       - id: end-of-file-fixer
       - id: pretty-format-json
         args:
@@ -28,7 +29,25 @@ repos:
     hooks:
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --all --
+        entry: cargo fmt --all
         language: system
         types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --all-targets -- -D warnings
+        language: system
+        files: \.rs$|^Cargo\.(toml|lock)$
+        pass_filenames: false
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test
+        language: system
+        files: \.rs$|^Cargo\.(toml|lock)$
+        pass_filenames: false
+      - id: cargo-doc
+        name: cargo doc
+        entry: env RUSTDOCFLAGS=-Dwarnings cargo doc --no-deps
+        language: system
+        files: \.rs$|^Cargo\.(toml|lock)$
         pass_filenames: false
