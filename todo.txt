@@ -7,8 +7,8 @@ x 2026-11-24 2026-11-24 error type
 x 2026-11-25 2026-11-24 rename to riotee-probe and publish
 x 2026-11-25 2026-11-24 add prek
 2026-11-24 add ci
-x 2026-11-25 2026-11-24 add license
-2026-11-24 add readme
+x 2026-11-25 x 2026-11-25 2026-11-24 add license
+x 2026-11-25 2026-11-24 add readme
 x 2026-11-24 2026-11-24 check all doc warnings
 x 2026-11-24 2026-11-24 add tests for vendor command encoding and response parsing, no hardware needed
 2026-11-24 document the public api, consider #![warn(missing_docs)]
