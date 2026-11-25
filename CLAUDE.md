@@ -130,4 +130,3 @@ Prefer putting the explanation in the error message over commenting the check.
 **Dependencies use exact resolved semver triples** (`anyhow = "1.0.104"`, not `"1"`), and
 `probe-rs` is pinned to an upstream git rev. Use **upstream probe-rs**, never a fork — it
 supports dynamic vendor commands.
-
