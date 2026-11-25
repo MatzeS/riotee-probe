@@ -6,6 +6,13 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Library and CLI to control Riotee devices."
 repository = "https://github.com/MatzeS/riotee-probe"
+keywords = ["riotee"]
+categories = [
+  "embedded",
+  "hardware-support",
+  "development-tools::debugging",
+  "command-line-utilities",
+]
 
 [[bin]]
 name = "riotee-probe"
