@@ -936,7 +936,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "riotee-probe-rs"
+name = "riotee-probe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
